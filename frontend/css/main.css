@@ -1,0 +1,158 @@
+/* Clarity Loop — base styles */
+/* Design language: dark (#07080f), muted purples, Georgia serif for text */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #07080f;
+  --bg-card:    rgba(255,255,255,0.03);
+  --border:     rgba(120, 90, 200, 0.15);
+  --text:       #d8d0e8;
+  --text-dim:   #6058a0;
+  --text-faint: #3a3650;
+  --accent:     #9878e8;
+  --accent-glow:rgba(152, 120, 232, 0.4);
+  --ok:         rgba(100, 200, 140, 0.8);
+  --warn:       rgba(220, 160, 80, 0.8);
+  --bad:        rgba(200, 80, 80, 0.8);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Helvetica Neue', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Dev / validation view ─────────────────────────────────────── */
+
+.dev-view {
+  width: min(480px, 94vw);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 0;
+}
+
+.dev-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+.dev-header h1 {
+  font-family: Georgia, serif;
+  font-size: 22px;
+  font-weight: normal;
+  color: var(--text);
+  letter-spacing: 1px;
+}
+.dev-header p {
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* Camera feed */
+.camera-section {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #000;
+  aspect-ratio: 4/3;
+}
+#camera-feed {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scaleX(-1); /* mirror */
+}
+.roi-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Metrics cards */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.metric-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.metric-value {
+  font-size: 28px;
+  font-family: Georgia, serif;
+  color: var(--text);
+  line-height: 1;
+}
+.metric-unit {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* Status row */
+.status-row {
+  display: flex;
+  gap: 10px;
+}
+.status-pill {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+.status-dot.ok    { background: var(--ok); }
+.status-dot.warn  { background: var(--warn); }
+.status-dot.bad   { background: var(--bad); }
+
+/* Status message */
+#status-msg {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 16px;
+  font-style: italic;
+}
+
+/* ROI canvas overlay (Week 1 debug) */
+#roi-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+}
