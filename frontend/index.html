@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Clarity Loop — Week 1 Validation</title>
+  <title>Clarity Loop — Week 3</title>
   <link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
 
   <div class="dev-header">
     <h1>Clarity Loop</h1>
-    <p>Week 1 · CV Validation</p>
+    <p>Week 3 · Full Sensing Layer</p>
   </div>
 
   <!-- Camera preview -->
@@ -29,8 +29,23 @@
       <span class="metric-unit">BPM</span>
     </div>
     <div class="metric-card">
+      <span class="metric-label">Respiration</span>
+      <span class="metric-value" id="rr-value">—</span>
+      <span class="metric-unit">BR / MIN</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Restlessness</span>
+      <span class="metric-value" id="restless-value">—</span>
+      <span class="metric-unit">0 — 1</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Posture</span>
+      <span class="metric-value" style="font-size:14px;line-height:1.4;padding-top:2px" id="posture-lines">—</span>
+    </div>
+    <div class="metric-card wide">
       <span class="metric-label">Physio State</span>
-      <span class="metric-value" style="font-size:18px;padding-top:4px" id="phys-state">unknown</span>
+      <span class="metric-value" style="font-size:20px;padding-top:4px" id="phys-state">unknown</span>
+      <span class="metric-unit" id="baseline-status">baseline: warming up…</span>
     </div>
   </div>
 
@@ -44,40 +59,35 @@
       <div class="status-dot" id="dot-signal"></div>
       <span>Signal&nbsp;<span id="signal-quality">waiting</span></span>
     </div>
+    <div class="status-pill">
+      <div class="status-dot" id="dot-face"></div>
+      <span id="face-status">no face</span>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot" id="dot-pose"></div>
+      <span id="pose-status">no pose</span>
+    </div>
   </div>
 
   <p id="status-msg">Initialising camera…</p>
 
 </div>
 
+<!-- MediaPipe Face Mesh (Week 2) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+
+<!-- MediaPipe Pose (Week 3 — posture + restlessness) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+
 <script src="/static/js/websocket.js"></script>
 <script src="/static/js/camera.js"></script>
 <script>
-  // Draw ROI rectangle on canvas for Week 1 visual debug
-  (function drawROI() {
-    const video = document.getElementById('camera-feed');
-    const canvas = document.getElementById('roi-canvas');
-    const ctx = canvas.getContext('2d');
-    video.addEventListener('loadedmetadata', () => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const x = Math.floor(video.videoWidth  * 0.35);
-      const y = Math.floor(video.videoHeight * 0.15);
-      const w = Math.floor(video.videoWidth  * 0.30);
-      const h = Math.floor(video.videoHeight * 0.35);
-      ctx.strokeStyle = 'rgba(152,120,232,0.6)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-      ctx.strokeRect(x, y, w, h);
-      ctx.font = '11px monospace';
-      ctx.fillStyle = 'rgba(152,120,232,0.6)';
-      ctx.fillText('ROI (Week 1 — replace with MediaPipe face mesh)', x + 4, y - 5);
-    });
-  })();
-
-  // React to ws/signal status dots
-  document.addEventListener('ws:open',  () => document.getElementById('dot-ws').className = 'status-dot ok');
-  document.addEventListener('ws:close', () => document.getElementById('dot-ws').className = 'status-dot bad');
+  document.addEventListener('ws:open',  () => {
+    document.getElementById('dot-ws').className = 'status-dot ok';
+  });
+  document.addEventListener('ws:close', () => {
+    document.getElementById('dot-ws').className = 'status-dot bad';
+  });
 </script>
 <script src="/static/js/app.js"></script>
 </body>

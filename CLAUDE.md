@@ -40,8 +40,8 @@ backend/
   cv/
     heart_rate.py       HeartRateDetector — ICA+FFT rPPG (Week 1 ✓)
     jade.py             JADE ICA algorithm (adapted from reference)
-    respiration.py      RespirationDetector stub — EVM+optical flow (Week 2)
-    posture.py          PostureDetector stub — MediaPipe Pose (Week 3)
+    respiration.py      RespirationDetector — chest-pixel motion + green-channel fallback (Week 2 ✓)
+    posture.py          PostureDetector — front-view MediaPipe Pose landmarks → posture + restlessness (Week 3 ✓)
   state/
     model.py            PhysiologicalStateModel — rolling metrics → state label
   orchestrator/
@@ -56,16 +56,23 @@ backend/
 Browser captures face ROI → RGB channel averages (15 fps)
   → buffered to 128 frames → sent as {type:"hr_data"} every ~1 s
   → backend: JADE ICA → Hamming → FFT peak → BPM
-  → reply: {type:"hr_result", bpm, spectrum, signal_quality, state}
+
+Browser MediaPipe Pose → 7 front-view landmarks (~5 fps)
+  → sent as {type:"pose_data"} → backend buffers in rolling window
+  → posture metrics + restlessness variance computed on demand
+
+reply: {type:"hr_result", bpm, rr_bpm, posture:{slump_score,
+        forward_head_lean, head_tilt_deg, shoulder_asymmetry,
+        restlessness, signal_quality}, signal_quality, state}
 ```
 
 ## Week Status
 
 | Week | Status | Key file |
 |------|--------|----------|
-| 1 | In progress | `backend/cv/heart_rate.py`, `frontend/js/camera.js` |
-| 2 | Stub | `backend/cv/respiration.py` |
-| 3 | Stub | `backend/cv/posture.py`, `backend/state/model.py` |
+| 1 | Done | `backend/cv/heart_rate.py`, `frontend/js/camera.js` |
+| 2 | Done | `backend/cv/respiration.py` |
+| 3 | Posture done; state-model thresholds pending live calibration | `backend/cv/posture.py`, `backend/state/model.py` |
 | 4 | Stub | `backend/orchestrator/rules.py` |
 | 5 | Stub | `backend/orchestrator/agent.py` |
 | 6 | Stub | `backend/db/session.py`, `frontend/index.html` polished |

@@ -1,77 +1,107 @@
 /**
- * Clarity Loop camera module.
+ * Clarity Loop camera module — Week 2.
  *
- * Week 1 — ROI strategy: simple centre-rectangle crop (validation only).
- *   The centre 120×90 px region is used as a face-ROI proxy so the full
- *   pipeline (capture → RGB averages → WebSocket → ICA → BPM) can be
- *   validated end-to-end before Week 2 proper face tracking is added.
+ * Two ROIs are extracted every frame:
  *
- * Week 2 TODO:
- *   Replace the centre-crop with MediaPipe Face Mesh (JS):
- *     import { FaceMesh } from '@mediapipe/face_mesh';
- *   Use landmarks 10 (forehead), 234 & 454 (cheeks) as the ROI bounding box.
- *   This gives a much more stable signal and removes headtrackr.js dependency.
+ *   Face ROI  — forehead + cheeks (upper 55% of face bounding box)
+ *               → RGB channel averages → heart rate pipeline (rPPG)
  *
- * WebSocket message sent every ~1 s:
- *   { type: 'hr_data', r: [...], g: [...], b: [...], bufferWindow: N }
+ *   Chest ROI — shoulders / upper torso (below face, or lower half of frame)
+ *               → luminance averages → respiration pipeline
+ *               Same technique as the Respiration-Rate-Detection reference:
+ *               mean pixel intensity oscillates as the chest rises and falls.
+ *
+ * MediaPipe Face Mesh drives both ROIs.  Falls back to static crops when no
+ * face is detected.
+ *
+ * MediaPipe Pose runs in parallel (Week 3) at ~5 fps.  We forward only the
+ * seven front-view landmarks used by the posture pipeline (0, 7, 8, 11, 12,
+ * 23, 24) — the backend computes posture metrics + restlessness variance.
+ *
+ * WebSocket messages:
+ *   ~1/s : { type:'hr_data',   r:[…], g:[…], b:[…], chest:[…], bufferWindow, fps }
+ *   ~5/s : { type:'pose_data', landmarks: { "0":{x,y,visibility}, ... } }
  */
 
 class ClarityCamera {
   constructor(onSignalUpdate) {
-    this._onSignalUpdate = onSignalUpdate; // callback({hasSignal, faceDetected})
+    this._onSignalUpdate = onSignalUpdate;
 
-    this._video = null;
+    this._video  = null;
     this._canvas = document.createElement('canvas');
-    this._ctx = this._canvas.getContext('2d');
+    this._ctx    = this._canvas.getContext('2d');
 
-    this.fps = 15;
-    this.bufferWindow = 128; // frames to accumulate before sending
+    this.fps           = 15;
+    this.bufferWindow  = 128;
     this.sendIntervalMs = 1000;
 
-    this._r = [];
-    this._g = [];
-    this._b = [];
-    this._sendingData = false;
+    // Heart-rate buffers (face ROI RGB averages)
+    this._r = []; this._g = []; this._b = [];
+    // Respiration buffer (chest ROI luminance averages)
+    this._chest = [];
 
-    this._captureTimer = null;
-    this._sendTimer = null;
+    this._sendingData    = false;
+    this._captureTimer   = null;
+    this._sendTimer      = null;
+    this._frameTimes     = [];
+    this._faceFrameCount = 0;
+    this._poseFrameCount = 0;
 
-    // ROI for Week 1 (centre crop — replace with face mesh in Week 2)
-    this._roi = null; // set after video dimensions known
+    // ROI state
+    this._centerCropRoi = null;
+    this._roi           = null;   // active face ROI
+    this._chestRoi      = null;   // active chest ROI
+    this._faceDetected  = false;
 
-    // Will be injected by app.js
-    this.socket = null;
+    // MediaPipe models
+    this._faceMesh      = null;
+    this._pose          = null;
+    this._poseDetected  = false;
+
+    this.socket = null;   // injected by app.js
   }
+
+  // ----------------------------------------------------------------
+  // Public
+  // ----------------------------------------------------------------
 
   async start() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      this._video = document.getElementById('camera-feed');
-      if (!this._video) {
-        this._video = document.createElement('video');
-      }
-      this._video.srcObject = stream;
-      this._video.autoplay = true;
+      this._video = document.getElementById('camera-feed') || document.createElement('video');
+      this._video.srcObject  = stream;
+      this._video.autoplay   = true;
       this._video.playsInline = true;
-      this._video.muted = true;
+      this._video.muted      = true;
       await this._video.play();
 
-      // Set canvas dimensions to match video
-      this._canvas.width = this._video.videoWidth || 640;
+      this._canvas.width  = this._video.videoWidth  || 640;
       this._canvas.height = this._video.videoHeight || 480;
 
-      // Week 1 ROI: centre third of the frame
-      const w = this._canvas.width;
-      const h = this._canvas.height;
-      this._roi = {
-        x: Math.floor(w * 0.35),
-        y: Math.floor(h * 0.15),
-        w: Math.floor(w * 0.30),
-        h: Math.floor(h * 0.35),
+      const W = this._canvas.width;
+      const H = this._canvas.height;
+
+      // Default face ROI: centre-crop (Week 1 fallback)
+      this._centerCropRoi = {
+        x: Math.floor(W * 0.35),
+        y: Math.floor(H * 0.15),
+        w: Math.floor(W * 0.30),
+        h: Math.floor(H * 0.35),
+      };
+      this._roi = { ...this._centerCropRoi };
+
+      // Default chest ROI: lower half of frame, full width (shoulders / upper torso)
+      this._chestRoi = {
+        x: Math.floor(W * 0.05),
+        y: Math.floor(H * 0.55),
+        w: Math.floor(W * 0.90),
+        h: Math.floor(H * 0.35),
       };
 
+      this._initFaceMesh();
+      this._initPose();
       this._startCapture();
-      console.log('[camera] started — ROI:', this._roi);
+      console.log('[camera] started — face ROI:', this._roi, ' chest ROI:', this._chestRoi);
       return true;
     } catch (err) {
       console.error('[camera] getUserMedia failed:', err);
@@ -82,70 +112,291 @@ class ClarityCamera {
 
   stop() {
     if (this._captureTimer) clearInterval(this._captureTimer);
-    if (this._sendTimer) clearInterval(this._sendTimer);
+    if (this._sendTimer)    clearInterval(this._sendTimer);
     if (this._video && this._video.srcObject) {
       this._video.srcObject.getTracks().forEach(t => t.stop());
     }
   }
 
   // ----------------------------------------------------------------
-  // Private
+  // MediaPipe Face Mesh
+  // ----------------------------------------------------------------
+
+  _initFaceMesh() {
+    if (typeof FaceMesh === 'undefined') {
+      console.warn('[camera] FaceMesh not loaded — using static-crop fallback');
+      return;
+    }
+    this._faceMesh = new FaceMesh({
+      locateFile: file =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`,
+    });
+    this._faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    this._faceMesh.onResults(results => {
+      const lms = results.multiFaceLandmarks && results.multiFaceLandmarks[0];
+      if (lms) {
+        this._faceDetected = true;
+        this._updateRoisFromLandmarks(lms);
+      } else {
+        this._faceDetected = false;
+        this._roi      = { ...this._centerCropRoi };
+        this._chestRoi = this._defaultChestRoi();
+      }
+    });
+    console.log('[camera] MediaPipe Face Mesh initialised');
+  }
+
+  // ----------------------------------------------------------------
+  // MediaPipe Pose (Week 3 — posture + restlessness)
+  // ----------------------------------------------------------------
+
+  _initPose() {
+    if (typeof Pose === 'undefined') {
+      console.warn('[camera] Pose not loaded — posture pipeline disabled');
+      return;
+    }
+    this._pose = new Pose({
+      locateFile: file =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`,
+    });
+    this._pose.setOptions({
+      modelComplexity: 0,         // "lite" — fast enough alongside Face Mesh
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    const WANTED = [0, 7, 8, 11, 12, 23, 24]; // see posture.py for what each is
+
+    this._pose.onResults(results => {
+      const lms = results.poseLandmarks;
+      if (!lms) {
+        this._poseDetected = false;
+        return;
+      }
+      this._poseDetected = true;
+
+      const out = {};
+      for (const idx of WANTED) {
+        const lm = lms[idx];
+        if (!lm) continue;
+        out[idx] = {
+          x: lm.x,
+          y: lm.y,
+          visibility: lm.visibility ?? 1.0,
+        };
+      }
+
+      if (this.socket && this.socket.connected) {
+        this.socket.send({ type: 'pose_data', landmarks: out });
+      }
+    });
+    console.log('[camera] MediaPipe Pose initialised');
+  }
+
+  _defaultChestRoi() {
+    const W = this._canvas.width;
+    const H = this._canvas.height;
+    return {
+      x: Math.floor(W * 0.05),
+      y: Math.floor(H * 0.55),
+      w: Math.floor(W * 0.90),
+      h: Math.floor(H * 0.35),
+    };
+  }
+
+  _updateRoisFromLandmarks(landmarks) {
+    const vw = this._canvas.width;
+    const vh = this._canvas.height;
+
+    // Full face bounding box
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    for (const lm of landmarks) {
+      if (lm.x < minX) minX = lm.x;
+      if (lm.x > maxX) maxX = lm.x;
+      if (lm.y < minY) minY = lm.y;
+      if (lm.y > maxY) maxY = lm.y;
+    }
+
+    const faceH = maxY - minY;
+
+    // Face ROI: upper 55% of face bounding box (forehead + cheeks)
+    this._roi = {
+      x: Math.max(0, Math.floor(minX * vw)),
+      y: Math.max(0, Math.floor(minY * vh)),
+      w: Math.min(vw, Math.ceil((maxX - minX) * vw)),
+      h: Math.min(vh, Math.ceil(faceH * 0.55 * vh)),
+    };
+
+    // Chest ROI: just below the chin, wider than the face for shoulders
+    const chinY   = Math.floor(maxY * vh);
+    const margin  = 8;
+    const chestTop = Math.min(chinY + margin, vh - 30);
+    const chestH   = Math.min(vh - chestTop - 5, 130);
+    const extra    = Math.floor((maxX - minX) * vw * 0.25); // 25% wider each side
+    this._chestRoi = {
+      x: Math.max(0, Math.floor(minX * vw) - extra),
+      y: chestTop,
+      w: Math.min(vw, Math.ceil((maxX - minX) * vw) + extra * 2),
+      h: Math.max(0, chestH),
+    };
+  }
+
+  // ----------------------------------------------------------------
+  // Capture loop
   // ----------------------------------------------------------------
 
   _startCapture() {
-    // Draw video → canvas and extract RGB at FPS
     this._captureTimer = setInterval(() => this._captureFrame(), 1000 / this.fps);
+    this._sendTimer    = setInterval(() => this._sendBuffer(),  this.sendIntervalMs);
+  }
 
-    // Send buffer to backend every second
-    this._sendTimer = setInterval(() => this._sendBuffer(), this.sendIntervalMs);
+  _actualFps() {
+    if (this._frameTimes.length < 2) return this.fps;
+    const dt = (this._frameTimes[this._frameTimes.length - 1] - this._frameTimes[0]) / 1000;
+    return (this._frameTimes.length - 1) / dt;
   }
 
   _captureFrame() {
     if (!this._video || this._video.readyState < 2) return;
 
+    const now = performance.now();
+    this._frameTimes.push(now);
+    if (this._frameTimes.length > 30) this._frameTimes.shift();
+
     this._ctx.drawImage(this._video, 0, 0, this._canvas.width, this._canvas.height);
 
+    // Send every 5th frame to face mesh for async ROI update (~3 fps)
+    this._faceFrameCount++;
+    if (this._faceMesh && this._faceFrameCount % 5 === 0) {
+      this._faceMesh.send({ image: this._video }).catch(() => {});
+    }
+
+    // Send every 3rd frame to pose (~5 fps) — gives ~30 samples over
+    // the backend's 6 s restlessness window.  Offset by 1 so face mesh
+    // and pose rarely fire on the same capture tick.
+    this._poseFrameCount++;
+    if (this._pose && (this._poseFrameCount + 1) % 3 === 0) {
+      this._pose.send({ image: this._video }).catch(() => {});
+    }
+
+    // ── Face ROI → RGB averages (heart rate) ──────────────────────
     const { x, y, w, h } = this._roi;
-    const imageData = this._ctx.getImageData(x, y, w, h);
-    const pixels = imageData.data; // [R, G, B, A, R, G, B, A, ...]
-
+    const facePixels = this._ctx.getImageData(x, y, w, h).data;
     let rSum = 0, gSum = 0, bSum = 0;
-    const pixelCount = pixels.length / 4;
-    for (let i = 0; i < pixels.length; i += 4) {
-      rSum += pixels[i];
-      gSum += pixels[i + 1];
-      bSum += pixels[i + 2];
+    const faceCount = facePixels.length / 4;
+    for (let i = 0; i < facePixels.length; i += 4) {
+      rSum += facePixels[i];
+      gSum += facePixels[i + 1];
+      bSum += facePixels[i + 2];
     }
+    this._pushRolling(this._r, rSum / faceCount);
+    this._pushRolling(this._g, gSum / faceCount);
+    this._pushRolling(this._b, bSum / faceCount);
 
-    const rAvg = rSum / pixelCount;
-    const gAvg = gSum / pixelCount;
-    const bAvg = bSum / pixelCount;
+    if (this._g.length > this.bufferWindow / 8) this._sendingData = true;
 
-    // Maintain a rolling buffer of bufferWindow samples
-    if (this._g.length < this.bufferWindow) {
-      this._r.push(rAvg);
-      this._g.push(gAvg);
-      this._b.push(bAvg);
-      if (this._g.length > this.bufferWindow / 8) {
-        this._sendingData = true;
+    // ── Chest ROI → luminance averages (respiration) ───────────────
+    if (this._chestRoi && this._chestRoi.h > 20 && this._chestRoi.w > 20) {
+      const { x: cx, y: cy, w: cw, h: ch } = this._chestRoi;
+      const chestPixels = this._ctx.getImageData(cx, cy, cw, ch).data;
+      let lumSum = 0;
+      const chestCount = chestPixels.length / 4;
+      for (let i = 0; i < chestPixels.length; i += 4) {
+        // Rec. 601 luminance weights
+        lumSum += 0.299 * chestPixels[i] + 0.587 * chestPixels[i + 1] + 0.114 * chestPixels[i + 2];
       }
-    } else {
-      this._r.push(rAvg); this._r.shift();
-      this._g.push(gAvg); this._g.shift();
-      this._b.push(bAvg); this._b.shift();
+      this._pushRolling(this._chest, lumSum / chestCount);
     }
 
-    this._onSignalUpdate({ hasSignal: this._sendingData, faceDetected: false /* Week 2 */ });
+    this._drawRoiOverlay();
+    this._onSignalUpdate({
+      hasSignal:     this._sendingData,
+      faceDetected:  this._faceDetected,
+      poseDetected:  this._poseDetected,
+    });
   }
+
+  _pushRolling(buf, value) {
+    if (buf.length < this.bufferWindow) {
+      buf.push(value);
+    } else {
+      buf.push(value);
+      buf.shift();
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // ROI debug overlay
+  // ----------------------------------------------------------------
+
+  _drawRoiOverlay() {
+    const canvas = document.getElementById('roi-canvas');
+    if (!canvas) return;
+
+    if (canvas.width !== this._canvas.width) {
+      canvas.width  = this._canvas.width;
+      canvas.height = this._canvas.height;
+    }
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Face ROI (green solid = face tracked, purple dashed = fallback)
+    const { x, y, w, h } = this._roi;
+    if (this._faceDetected) {
+      ctx.strokeStyle = 'rgba(100,220,140,0.85)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(100,220,140,0.75)';
+      ctx.fillText('face mesh', x + 4, y - 4);
+    } else {
+      ctx.strokeStyle = 'rgba(152,120,232,0.55)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(152,120,232,0.55)';
+      ctx.fillText('centre crop', x + 4, y - 4);
+    }
+
+    // Chest ROI (cyan dashed)
+    if (this._chestRoi && this._chestRoi.h > 20) {
+      const { x: cx, y: cy, w: cw, h: ch } = this._chestRoi;
+      ctx.strokeStyle = 'rgba(80,200,230,0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 6]);
+      ctx.strokeRect(cx, cy, cw, ch);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(80,200,230,0.5)';
+      ctx.fillText('chest motion', cx + 4, cy + 13);
+    }
+
+    ctx.setLineDash([]); // reset
+  }
+
+  // ----------------------------------------------------------------
+  // WebSocket send
+  // ----------------------------------------------------------------
 
   _sendBuffer() {
     if (!this._sendingData || !this.socket || !this.socket.connected) return;
     this.socket.send({
-      type: 'hr_data',
-      r: [...this._r],
-      g: [...this._g],
-      b: [...this._b],
+      type:         'hr_data',
+      r:            [...this._r],
+      g:            [...this._g],
+      b:            [...this._b],
+      chest:        [...this._chest],
       bufferWindow: this._g.length,
+      fps:          this._actualFps(),
     });
   }
 }
