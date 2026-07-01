@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarity Loop — Mirror</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body class="mirror-body">
+
+<canvas id="flame-canvas" class="flame-canvas"></canvas>
+
+<nav class="mode-nav mirror-nav">
+  <a href="/" class="mode-link">Sensing</a>
+  <a href="/observe" class="mode-link">Observation</a>
+  <a href="/mirror" class="mode-link active">Mirror</a>
+  <a href="/game1" class="mode-link">Game 1</a>
+</nav>
+
+<div class="mirror-subtitle">breath as flame</div>
+
+<div class="mirror-status">
+  <span class="dot-indicator" id="track-dot"></span>
+  <span id="track-text">tracking…</span>
+  <span class="status-sep">·</span>
+  <span class="dot-indicator" id="calib-dot"></span>
+  <span id="calib-text">calibrating</span>
+</div>
+
+<!-- Hidden camera + face mesh + pose (all running in background) -->
+<video id="camera-feed" playsinline muted autoplay class="hidden-video"></video>
+<canvas id="roi-canvas" class="hidden-video"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/camera.js"></script>
+<script src="/static/js/breath_stabilizer.js"></script>
+<script src="/static/js/mirror.js"></script>
+</body>
+</html>

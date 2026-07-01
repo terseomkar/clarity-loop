@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarity Loop — Observation</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+
+<div class="observe-view">
+
+  <nav class="mode-nav">
+    <a href="/" class="mode-link">Sensing</a>
+    <a href="/observe" class="mode-link active">Observation</a>
+    <a href="/mirror" class="mode-link">Mirror</a>
+    <a href="/game1" class="mode-link">Game 1</a>
+  </nav>
+
+  <div class="dev-header">
+    <h1>Clarity Loop</h1>
+    <p>Observational Mode</p>
+  </div>
+
+  <div class="observe-grid">
+
+    <!-- LEFT: breath metrics -->
+    <aside class="metrics-side">
+      <div class="metric-mini">
+        <span class="metric-mini-label">Breathing Rate</span>
+        <span class="metric-mini-value" id="m-br-rate">—</span>
+        <span class="metric-mini-unit">br / min · refreshes 30 s</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">Tidal Volume</span>
+        <span class="metric-mini-value" id="m-tidal-volume">—</span>
+        <span class="metric-mini-unit">avg breath magnitude · refreshes 10 min</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">Breathing Depth</span>
+        <span class="metric-mini-value" id="m-depth">—</span>
+        <span class="metric-mini-unit">vs baseline</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">E : I Ratio</span>
+        <span class="metric-mini-value" id="m-ie-ratio">—</span>
+        <span class="metric-mini-unit">exhale ÷ inhale duration</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">Breath Hold</span>
+        <span class="metric-mini-value" id="m-hold">
+          <span class="dot-indicator" id="hold-dot"></span>
+          <span id="hold-text">—</span>
+        </span>
+      </div>
+    </aside>
+
+    <!-- MIDDLE: camera feed + landmark overlay -->
+    <div class="camera-section">
+      <video id="camera-feed" playsinline muted autoplay></video>
+      <canvas id="roi-canvas" class="roi-overlay"></canvas>
+    </div>
+
+    <!-- RIGHT: posture metrics -->
+    <aside class="metrics-side">
+      <div class="metric-mini">
+        <span class="metric-mini-label">Shoulder Width</span>
+        <span class="metric-mini-value" id="m-sw">—</span>
+        <span class="metric-mini-unit">shoulder-to-shoulder</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">Ear → Shoulder</span>
+        <span class="metric-mini-value" id="m-e2s">—</span>
+        <span class="metric-mini-unit">avg vertical distance</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">Head Lift Ratio</span>
+        <span class="metric-mini-value" id="m-abs-ratio">—</span>
+        <span class="metric-mini-unit">ear-shoulder / shoulder width</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">Back Lift Ratio</span>
+        <span class="metric-mini-value" id="m-back-lift">—</span>
+        <span class="metric-mini-unit">shoulder→hip / shoulder width</span>
+      </div>
+      <div class="metric-mini">
+        <span class="metric-mini-label">Shoulder → Hip</span>
+        <span class="metric-mini-value" id="m-s2h">—</span>
+        <span class="metric-mini-unit">torso compression</span>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Trend waveforms (unchanged from prior experiment) -->
+  <div class="trend-card">
+    <span class="trend-label">Breath</span>
+    <span class="trend-hint">chest expansion ↑ ↓</span>
+    <canvas id="breath-graph" class="trend-graph"></canvas>
+  </div>
+
+  <div class="trend-card">
+    <span class="trend-label">Restlessness</span>
+    <span class="trend-hint">body movement intensity</span>
+    <canvas id="restless-graph" class="trend-graph"></canvas>
+  </div>
+
+  <p id="status-msg">Initialising camera…</p>
+
+</div>
+
+<!-- MediaPipe Face Mesh + Pose -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/camera.js"></script>
+<script src="/static/js/observe.js"></script>
+</body>
+</html>

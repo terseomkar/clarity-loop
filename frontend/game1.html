@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarity Loop — Game 1</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body class="mirror-body">
+
+<canvas id="flame-canvas" class="flame-canvas"></canvas>
+
+<nav class="mode-nav mirror-nav">
+  <a href="/" class="mode-link">Sensing</a>
+  <a href="/observe" class="mode-link">Observation</a>
+  <a href="/mirror" class="mode-link">Mirror</a>
+  <a href="/game1" class="mode-link active">Game 1</a>
+</nav>
+
+<div class="mirror-subtitle">phoenix ascent</div>
+
+<div class="game-progress">
+  <div class="game-progress-label">phoenix ascent</div>
+  <div class="game-progress-bar">
+    <div class="game-progress-fill" id="progress-fill"></div>
+  </div>
+  <div class="game-progress-status" id="progress-text">waiting for signal…</div>
+</div>
+
+<button id="replay-btn" class="replay-btn" type="button" style="display:none">Replay</button>
+
+<div class="mirror-status">
+  <span class="dot-indicator" id="track-dot"></span>
+  <span id="track-text">tracking…</span>
+  <span class="status-sep">·</span>
+  <span class="calib-indicator-wrap">
+    <svg class="calib-progress-svg" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <circle id="calib-progress-circle" cx="11" cy="11" r="9"
+              fill="none" stroke-width="2"
+              stroke-dasharray="56.55" stroke-dashoffset="56.55"
+              transform="rotate(-90 11 11)" />
+    </svg>
+    <span class="dot-indicator" id="calib-dot"></span>
+  </span>
+  <span id="calib-text">calibrating</span>
+</div>
+
+<div class="demo-toggle">
+  <span class="demo-toggle-label">demo speed</span>
+  <label class="toggle-switch">
+    <input type="checkbox" id="demo-toggle-input">
+    <span class="toggle-slider"></span>
+  </label>
+</div>
+
+<!-- Hidden camera + face mesh + pose (all running in background) -->
+<video id="camera-feed" playsinline muted autoplay class="hidden-video"></video>
+<canvas id="roi-canvas" class="hidden-video"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/camera.js"></script>
+<script src="/static/js/breath_stabilizer.js"></script>
+<script src="/static/js/game1.js"></script>
+</body>
+</html>

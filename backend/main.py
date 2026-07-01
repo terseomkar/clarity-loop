@@ -65,6 +65,24 @@ async def root():
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
+@app.get("/observe")
+async def observe():
+    """Observational Mode — landmarks + breath/restlessness waveforms only."""
+    return FileResponse(FRONTEND_DIR / "observe.html")
+
+
+@app.get("/mirror")
+async def mirror():
+    """Mirror Mode — breath rendered as a responsive fire animation."""
+    return FileResponse(FRONTEND_DIR / "mirror.html")
+
+
+@app.get("/game1")
+async def game1():
+    """Game 1 — gamified breath-fire experiment (scaffolded from Mirror Mode)."""
+    return FileResponse(FRONTEND_DIR / "game1.html")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "clarity-loop"}

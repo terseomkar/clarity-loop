@@ -24,8 +24,18 @@
  */
 
 class ClarityCamera {
-  constructor(onSignalUpdate) {
+  /**
+   * @param {function} onSignalUpdate  Called per capture frame with status flags.
+   * @param {object}   [opts]
+   * @param {boolean}  [opts.drawLandmarks=false]  Overlay pose landmarks instead of ROI boxes.
+   * @param {function} [opts.onChestSample]        Called per capture frame with raw chest luminance.
+   * @param {function} [opts.onPoseSample]         Called per pose update with (landmarksObj, motionMagnitude).
+   */
+  constructor(onSignalUpdate, opts = {}) {
     this._onSignalUpdate = onSignalUpdate;
+    this._drawLandmarks  = !!opts.drawLandmarks;
+    this._onChestSample  = opts.onChestSample || null;
+    this._onPoseSample   = opts.onPoseSample  || null;
 
     this._video  = null;
     this._canvas = document.createElement('canvas');
@@ -57,6 +67,8 @@ class ClarityCamera {
     this._faceMesh      = null;
     this._pose          = null;
     this._poseDetected  = false;
+    this._latestPose    = null;  // last 7 landmarks {idx: {x, y, visibility}}
+    this._prevPoseForMotion = null;  // previous landmarks, for frame-to-frame motion
 
     this.socket = null;   // injected by app.js
   }
@@ -192,6 +204,24 @@ class ClarityCamera {
           visibility: lm.visibility ?? 1.0,
         };
       }
+      this._latestPose = out;
+
+      // Frame-to-frame landmark motion magnitude — sum of |Δposition| across
+      // visible landmarks.  This is the raw signal the backend's restlessness
+      // variance is derived from.
+      let motion = 0;
+      if (this._prevPoseForMotion) {
+        for (const idx of WANTED) {
+          const cur = out[idx];
+          const prv = this._prevPoseForMotion[idx];
+          if (!cur || !prv) continue;
+          if ((cur.visibility ?? 1) < 0.5) continue;
+          motion += Math.abs(cur.x - prv.x) + Math.abs(cur.y - prv.y);
+        }
+      }
+      this._prevPoseForMotion = out;
+
+      if (this._onPoseSample) this._onPoseSample(out, motion);
 
       if (this.socket && this.socket.connected) {
         this.socket.send({ type: 'pose_data', landmarks: out });
@@ -312,10 +342,16 @@ class ClarityCamera {
         // Rec. 601 luminance weights
         lumSum += 0.299 * chestPixels[i] + 0.587 * chestPixels[i + 1] + 0.114 * chestPixels[i + 2];
       }
-      this._pushRolling(this._chest, lumSum / chestCount);
+      const chestLum = lumSum / chestCount;
+      this._pushRolling(this._chest, chestLum);
+      if (this._onChestSample) this._onChestSample(chestLum);
     }
 
-    this._drawRoiOverlay();
+    if (this._drawLandmarks) {
+      this._drawLandmarkOverlay();
+    } else {
+      this._drawRoiOverlay();
+    }
     this._onSignalUpdate({
       hasSignal:     this._sendingData,
       faceDetected:  this._faceDetected,
@@ -381,6 +417,66 @@ class ClarityCamera {
     }
 
     ctx.setLineDash([]); // reset
+  }
+
+  // ----------------------------------------------------------------
+  // Landmark overlay (Observational Mode)
+  // ----------------------------------------------------------------
+
+  _drawLandmarkOverlay() {
+    const canvas = document.getElementById('roi-canvas');
+    if (!canvas) return;
+    if (canvas.width !== this._canvas.width) {
+      canvas.width  = this._canvas.width;
+      canvas.height = this._canvas.height;
+    }
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const lms = this._latestPose;
+    if (!lms) return;
+
+    const W = canvas.width, H = canvas.height;
+    const px = lm => [lm.x * W, lm.y * H];
+
+    // Skeleton edges (pairs of landmark indices)
+    const EDGES = [
+      [7, 8],    // ear to ear
+      [11, 12],  // shoulder line
+      [23, 24],  // hip line
+      [11, 23],  // left torso edge
+      [12, 24],  // right torso edge
+      [0, 11],   // nose to left shoulder
+      [0, 12],   // nose to right shoulder
+    ];
+
+    // Edges first (so dots draw on top)
+    ctx.strokeStyle = 'rgba(152,120,232,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (const [a, b] of EDGES) {
+      const la = lms[a], lb = lms[b];
+      if (!la || !lb) continue;
+      if ((la.visibility ?? 1) < 0.5 || (lb.visibility ?? 1) < 0.5) continue;
+      const [ax, ay] = px(la), [bx, by] = px(lb);
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+    }
+    ctx.stroke();
+
+    // Landmark dots
+    for (const idx of Object.keys(lms)) {
+      const lm = lms[idx];
+      if ((lm.visibility ?? 1) < 0.5) continue;
+      const [x, y] = px(lm);
+      // outer glow
+      ctx.fillStyle = 'rgba(152,120,232,0.25)';
+      ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+      // core dot
+      ctx.fillStyle = 'rgba(216,208,232,0.95)';
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   // ----------------------------------------------------------------
