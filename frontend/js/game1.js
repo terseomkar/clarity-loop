@@ -20,7 +20,14 @@ const BreathAnalyzer = {
   samples: [],
   timestamps: [],
   WINDOW_MS: 60000,
-  EXTREMA_HALF_WIN: 5,
+  // Peak detection: a sample counts as a peak only if no sample within
+  // ±EXTREMA_HALF_WIN steps is higher.  At 15 Hz, 10 steps = ~0.67 s each
+  // side, giving a 1.33 s window.  Real breath peaks are 3+ s apart so they
+  // survive; sub-second wobbles from micro-motion or breathing tremor
+  // collapse into their nearest real peak instead of being counted as their
+  // own breaths.  Was 5 (~0.67 s window) — too permissive; over-counted
+  // cycles by 3–5× and zeroed the pace-reward multiplier.
+  EXTREMA_HALF_WIN: 10,
 
   push(v, t) {
     this.samples.push(v);
@@ -109,6 +116,16 @@ const BreathAnalyzer = {
     let v = 0;
     for (const x of s.v) v += (x - m) * (x - m);
     return Math.sqrt(v / s.v.length);
+  },
+
+  // Count of complete breath peaks in the most recent `sec` seconds.
+  // Direct measure of "how many breaths have happened recently" — used by
+  // the progress-rate pace multiplier (progress only, not flame).
+  // Returns 0 if the signal buffer is too short.
+  countCycles(sec = 10) {
+    const ex = this.findExtrema(sec);
+    if (!ex || !ex.length) return 0;
+    return ex.filter(e => e.kind === 'peak').length;
   },
 
   // Regularity — coefficient of variation (stdev / mean) of peak-to-peak
@@ -233,10 +250,23 @@ class FlameField {
   // ambient base glow alpha.  Driven by E:I and depth respectively (in GameApp).
   setEnvironment({ sparkRate, glowBoost }) {
     if (sparkRate != null) this.sparkRate = Math.max(0, sparkRate);
-    if (glowBoost != null) this.glowBoost = Math.max(1.0, Math.min(2.5, glowBoost));
+    if (glowBoost != null) this.glowBoost = Math.max(1.0, Math.min(3.5, glowBoost));
   }
 
-  setBreathState({ rate, depthRatio, ieRatio, isHeld }) {
+  // Signal-to-visual mapping (adapted from Mirror mode with two tweaks):
+  //   rate         → wobble (fast = jittery), inverse-divides size/life
+  //   depthRatio   → tall + wide + long-lived flame, more particles
+  //   ieRatio      → palette warmth ONLY (extended exhale = hot bright).
+  //                  Deliberately NOT contributing to height/life — depth
+  //                  is the sole "big flame" driver so the two signals stay
+  //                  perceptually independent.
+  //   isHeld       → ember mode (small, still, embers palette)
+  //
+  // No pace-reward, no motion gate, no stabilizer, no expansion curve.
+  // Pace and motion gating live in the progress-rate calculation only, so
+  // the flame remains a direct mirror of the raw breath — matches Mirror
+  // mode's responsive feel.
+  setBreathState({ rate, depthRatio, depthAmp, ieRatio, isHeld }) {
     if (isHeld) {
       this.targetEmission     = 1.2;
       this.targetHeight       = 55;
@@ -247,30 +277,45 @@ class FlameField {
       return;
     }
 
+    // Two depth channels:
+    //   dr    (raw)         → palette / wobble-neighbourhood / life
+    //   drAmp (exponential) → height + width  (bigger fire for deeper breath)
     const dr = (depthRatio != null && isFinite(depthRatio))
-               ? Math.max(0.35, Math.min(2.8, depthRatio))
+               ? Math.max(0.35, Math.min(1.9, depthRatio))
                : 1.0;
+    const drAmp = (depthAmp != null && isFinite(depthAmp))
+                ? Math.max(0.35, Math.min(3.5, depthAmp))
+                : dr;
+    // rate: ~14 normal, fast >20, slow <8
     const rt = rate != null ? rate : 14;
     const rateNorm = Math.max(0.4, Math.min(2.5, (rt - 6) / 10));
+    // E:I: relaxed ≥1.5, rushed <1.  Used only for palette warmth.
     const ie = ieRatio != null ? Math.max(0.5, Math.min(3.5, ieRatio)) : 1.0;
     const ieNorm = Math.max(0.6, Math.min(2.2, ie / 1.3));
 
-    this.targetEmission = 4 + 5 * rateNorm + 1.5 * dr;
+    // Emission — rate dominates so fast-shallow gets a jittery crowd of tongues.
+    // Depth contribution uses drAmp so deep breaths spawn noticeably more.
+    this.targetEmission = 4 + 5 * rateNorm + 1.5 * drAmp;
 
-    const rawHeight = (90 + 165 * dr) * (0.6 + 0.4 * ieNorm) / Math.max(0.7, rateNorm);
+    // Height — uses AMPLIFIED depth so a 2× breath registers as a 3× tall flame.
+    const rawHeight = (90 + 165 * drAmp) / Math.max(0.7, rateNorm);
     this.targetHeight = Math.min(rawHeight, this._maxTargetHeight);
 
-    this.targetWidth = 22 + 30 * dr / Math.max(0.9, rateNorm * 0.8);
+    // Width — uses AMPLIFIED depth for the same reason
+    this.targetWidth = 22 + 30 * drAmp / Math.max(0.9, rateNorm * 0.8);
 
+    // Wobble — exaggerated jitter for fast rates; near-still for slow
     this.targetWobble = 0.08 + 0.85 * rateNorm;
 
-    this.targetLife = Math.min(3.8, 0.7 + 1.4 * ieNorm * dr / Math.max(0.7, rateNorm));
+    // Life — uses RAW depth (per design — amplification stays scoped to size)
+    this.targetLife = Math.min(3.8, 0.7 + 1.4 * dr / Math.max(0.7, rateNorm));
 
+    // Palette — RAW depth + ie (extended exhale = hot bright).  E:I lives
+    // ONLY here; deliberately not amplified so brightness stays tied to
+    // "physical" depth rather than a rewarded reading of it.
     this.targetPaletteShift = (dr - 1.0) * 0.4 + 1.4 * (ieNorm - 1);
 
-    // Apply phoenix-ascent growth scaling — multiplies the breath-driven
-    // emission + size by the game progress.  Floors prevent the flame from
-    // dying entirely (always a visible ember even at game progress 0).
+    // Phoenix-ascent growth multiplier — flame scales with game progress.
     const g = this.gameGrowth;
     this.targetEmission *= (0.25 + 0.75 * g);
     this.targetHeight   *= (0.30 + 0.70 * g);
@@ -819,9 +864,76 @@ const GameApp = (() => {
   // Raw depthRatio preserved for future metrics; stabilized version drives the
   // fire, the glow-boost, AND the progress rate (so movement spikes don't leak
   // into game progression).
-  let _rate = null, _depthRatio = null, _depthRatioStable = null, _ie = null, _isHeld = false;
-  let _regularity = null;
-  const _stabilizer = new BreathStabilizer();
+  let _rate = null;
+  let _depthRatio = null, _depthAmp = null, _ie = null, _isHeld = false;
+  let _cyclesIn10s = 0;         // peaks in the last 10 s (per user request)
+  let _paceReward  = 1.0;       // 1 = calm/slow, 0 = fast — drives flame size + jitter + progress
+  let _regularity   = null;
+  let _restlessness = null;    // 0..1 from backend posture snapshot (windowed)
+  let _restPrev     = null;    // previous restlessness — used to compute delta
+  let _lastDeltaGate = 1.0;    // motion-delta gate applied on latest tick (progress only)
+  let _lastDebugAt   = 0;      // throttle for the console-log diagnostic
+
+  // ---------------------------------------------------------------------------
+  // Signal → visual/game aspect mapping (one signal per aspect, no cross-talk):
+  //
+  //   PACE  (cycles in last 10 s)  → flame SIZE + WOBBLE + progress multiplier
+  //   DEPTH (median-filtered dr)   → flame BRIGHTNESS (palette) + GLOW + progress
+  //   E:I   (falling / rising)     → ember SPARKS + progress bonus
+  //   HELD  (stdev < TV/2)         → ember/hold mode
+  //
+  // The ONLY gate on the depth signal is a DELTA gate on posture.restlessness
+  // to reject sudden body-shift artifacts.  Backend restlessness is smoothed
+  // over ~6 s, so its raw value lags real motion; its rate of change is what
+  // actually catches motion events without lingering through the decay tail.
+  //
+  // Rate suppression is not a depth-signal gate — the pace-reward multiplier
+  // at the flame + progress layer handles "don't reward fast breathing" more
+  // cleanly and puts the response where it belongs (feedback, not signal
+  // rejection).
+  // ---------------------------------------------------------------------------
+  const REST_DELTA_QUIET    = 0.05;   // restlessness rate-of-change below this = no suppression
+  const REST_DELTA_NOISY    = 0.20;   // restlessness rate-of-change above this = full suppression
+
+  // Pace-reward — counts breath peaks in the last 10 s and rewards commitment
+  // to slow breathing.  Windowed count so a single slow breath can't spoof it.
+  //   ≤2.0 cycles / 10 s (≈12 BPM) → full reward
+  //   ≥5.0 cycles / 10 s (≈30 BPM) → no reward
+  // Normal calm breathing (~15 BPM = 2.5 cycles / 10 s) sits at ~0.93 reward,
+  // so it doesn't get punished for being "not slow enough" — only genuine
+  // hyperventilation territory suppresses.
+  const PACE_CYCLES_CALM    = 2.0;
+  const PACE_CYCLES_FAST    = 5.0;
+
+  // Exponential amplification on above-baseline depth.  Applied ONLY to the
+  // "size" aspects — flame height, width, and progress-rate contribution.
+  // Palette / wobble / life continue to use the raw depth ratio so E:I stays
+  // the sole "brightness" driver and rate stays the sole wobble driver.
+  //   dr = 1.0 → 1.0  (baseline unchanged)
+  //   dr = 1.5 → 1.75
+  //   dr = 2.0 → 3.0
+  //   dr = 2.5 → 4.75
+  // Below-baseline shallow breaths pass through unchanged (no punishment).
+  const AMP_COEF = 1.0;
+  function _expAmplify(dr) {
+    if (dr == null || !isFinite(dr)) return dr;
+    const dev = dr - 1.0;
+    if (dev <= 0) return dr;
+    return 1.0 + dev + AMP_COEF * dev * dev;
+  }
+
+  function _inverseSmoothstep(x, lo, hi) {
+    if (x == null || !isFinite(x)) return 1.0;
+    if (x <= lo) return 1.0;
+    if (x >= hi) return 0.0;
+    const t = (x - lo) / (hi - lo);
+    return 1.0 - t * t * (3 - 2 * t);
+  }
+
+  // Session capture — every ACTIVE tick logs a sample so the completion popup
+  // can show raw vs stabilized (with gate context) on the same axis.
+  let _sessionLog     = [];
+  let _sessionStartMs = null;
 
   // -----------------------------------------------------------
   // Phoenix Ascent — game state
@@ -836,27 +948,26 @@ const GameApp = (() => {
   let _trackingGreen = false;
   let _isCalibrated  = false;
 
-  // Per-second contribution rates — mutable so the demo toggle can swap
-  // between normal pacing and 10× demo pacing without reloading the page.
-  let DEPTH_RATE   = 0.0060;     // × max(0, dr - 1)
-  let IE_RATE      = 0.0050;     // × max(0, ie - 1)
-  let REG_POS_MAX  = 0.0030;     // peak when CV → 0
-  let REG_NEG_MAX  = 0.0010;     // (currently disabled — penalty branch commented below)
+  // Progress rate — mutable so the demo toggle can swap between normal pacing
+  // and 10× demo pacing without reloading the page.  Applied to the "flame
+  // visual score" (see _tickGame): score is proportional to the flame's own
+  // size + brightness + ember rate, so the progress bar reflects exactly what
+  // the user sees the fire doing.
+  let FLAME_RATE = 0.0060;
 
-  const RATES_NORMAL = { depth: 0.0060, ie: 0.0050, regPos: 0.0030, regNeg: 0.0010 };
-  const RATES_DEMO   = { depth: 0.0600, ie: 0.0500, regPos: 0.0300, regNeg: 0.0100 };
+  const RATES_NORMAL = { flame: 0.0060 };
+  const RATES_DEMO   = { flame: 0.0600 };
 
   function _applyRates(useDemo) {
     const r = useDemo ? RATES_DEMO : RATES_NORMAL;
-    DEPTH_RATE  = r.depth;
-    IE_RATE     = r.ie;
-    REG_POS_MAX = r.regPos;
-    REG_NEG_MAX = r.regNeg;
+    FLAME_RATE = r.flame;
   }
 
-  // Regularity thresholds — coefficient-of-variation interpretation
-  const REG_GOOD_CV  = 0.15;     // below this → fully positive
-  const REG_BAD_CV   = 0.30;     // above this → starts going negative
+  // Binary decouple thresholds — progress freezes when either drops below.
+  //   Motion: sudden body shift while breathing (delta-restlessness gate)
+  //   Pace:   fast breathing (paceReward < DECOUPLE_PACE means ≥ ~4 cycles/10 s)
+  const DECOUPLE_MOTION = 0.5;
+  const DECOUPLE_PACE   = 0.5;
 
   // Checkpoint thresholds — each shows a brief phoenix-silhouette hint inside
   // the flame, with intensity scaling so the 75% hint reads as nearly the
@@ -885,6 +996,64 @@ const GameApp = (() => {
       demoToggle.addEventListener('change', (e) => {
         _applyRates(e.target.checked);
         _resetGame();
+      });
+    }
+
+    // Ambient audio track — Native American flute meditation.  Loops from the
+    // HTML `loop` attribute.  Browser autoplay policies typically block audio
+    // until user interaction; if the initial play() rejects, arm a one-shot
+    // listener that starts it on the first click/tap anywhere on the page.
+    // Mute preference persists across reloads via localStorage.
+    const audio  = document.getElementById('ambient-audio');
+    const muteBtn = document.getElementById('mute-btn');
+    if (audio && muteBtn) {
+      // Surface any load failure to the console — silent 404s from a stale
+      // backend without the /audio mount are the most common cause of a
+      // "the button says unmuted but I hear nothing" report.
+      audio.addEventListener('error', () => {
+        console.warn('[Clarity] ambient audio load failed. src =', audio.currentSrc,
+                     'error code =', audio.error && audio.error.code);
+      });
+      audio.addEventListener('canplay', () => {
+        console.info('[Clarity] ambient audio ready. duration =', audio.duration.toFixed(1), 's');
+      });
+
+      const stored = localStorage.getItem('clarity.muted');
+      const startMuted = stored === '1';
+      audio.muted = startMuted;
+      audio.volume = 0.5;
+      muteBtn.setAttribute('aria-pressed', String(startMuted));
+
+      const forcePlay = (reason) =>
+        audio.play()
+          .then(() => console.info('[Clarity] ambient audio playing —', reason))
+          .catch(err => console.warn('[Clarity] audio.play() rejected —', reason, err.name, err.message));
+
+      forcePlay('initial autoplay attempt');
+
+      // First interaction anywhere on the page satisfies autoplay policies.
+      const oneShotStart = () => forcePlay('first user interaction');
+      window.addEventListener('pointerdown', oneShotStart, { once: true });
+
+      muteBtn.addEventListener('click', () => {
+        audio.muted = !audio.muted;
+        muteBtn.setAttribute('aria-pressed', String(audio.muted));
+        localStorage.setItem('clarity.muted', audio.muted ? '1' : '0');
+        // If unmuting and audio isn't actually playing yet, kick it now —
+        // the mute-button click IS a user gesture, so play() will succeed.
+        if (!audio.muted && audio.paused) forcePlay('mute button unmute');
+      });
+    }
+
+    // Session Capture button + modal close/backdrop
+    const sessionBtn = document.getElementById('session-btn');
+    if (sessionBtn) sessionBtn.addEventListener('click', _openSessionModal);
+    const modal = document.getElementById('session-modal');
+    const closeBtn = document.getElementById('session-modal-close');
+    if (closeBtn) closeBtn.addEventListener('click', _closeSessionModal);
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) _closeSessionModal();
       });
     }
 
@@ -932,14 +1101,30 @@ const GameApp = (() => {
       }
     }
 
-    const rate = BreathAnalyzer.computeRate(30);
+    // Rate — 10-s window is responsive enough to feel per-breath while
+    // filtering out per-cycle jitter.  Drives ONLY flame wobble via
+    // FlameField.setBreathState (progress gets pace multiplier instead).
+    const rate = BreathAnalyzer.computeRate(10);
     if (rate != null) _rate = rate;
 
+    // Depth ratio — raw from the amplitude / baseline calculation.  No
+    // stabilizer, no gate.  Flows straight to the flame like Mirror mode.
     const curAmp = BreathAnalyzer.computeAmplitude(10);
     _depthRatio = (curAmp != null && _baselineTidal != null && _baselineTidal > 0)
                   ? curAmp / _baselineTidal
                   : null;
-    _depthRatioStable = _stabilizer.update(_depthRatio, performance.now());
+    // Exponentially-amplified version — feeds flame width + height + progress.
+    // Shallow breaths (dr ≤ 1) pass through untouched; deep breaths get a
+    // quadratic tail so genuinely big inhales register as visibly big flames.
+    _depthAmp = _expAmplify(_depthRatio);
+
+    // Delta-motion gate — applied at the progress-rate stage, NOT the depth
+    // signal itself.  This lets the flame continue to mirror the raw breath
+    // even during a body-shift, while progress correctly refuses to reward it.
+    const restDelta = (_restPrev != null && _restlessness != null)
+                    ? (_restlessness - _restPrev)
+                    : 0;
+    _lastDeltaGate = _inverseSmoothstep(restDelta, REST_DELTA_QUIET, REST_DELTA_NOISY);
 
     const ie = BreathAnalyzer.computeIE(20);
     _ie = (ie != null && ie.rising > 0 && ie.falling > 0)
@@ -951,6 +1136,12 @@ const GameApp = (() => {
     _isHeld = stdev != null && stdev < thresh;
 
     _regularity = BreathAnalyzer.computeRegularity(30);
+
+    // Pace metric — direct count of recent breath peaks (10-s window).
+    // Drives flame size, flame erraticness, AND progress rate so all three
+    // give consistent perceptual feedback for the same breathing pace.
+    _cyclesIn10s = BreathAnalyzer.countCycles(10);
+    _paceReward  = _inverseSmoothstep(_cyclesIn10s, PACE_CYCLES_CALM, PACE_CYCLES_FAST);
 
     _setCalibration(_baselineTidal != null);
 
@@ -967,7 +1158,8 @@ const GameApp = (() => {
     const forceHeld  = (_gameState === STATE_IDLE) || isComplete;
     fire.setBreathState({
       rate:        _rate,
-      depthRatio:  _depthRatioStable,
+      depthRatio:  _depthRatio,   // raw — drives palette / wobble / life
+      depthAmp:    _depthAmp,     // exponentially amplified — drives height + width
       ieRatio:     _ie,
       isHeld:      _isHeld || forceHeld,
     });
@@ -977,9 +1169,10 @@ const GameApp = (() => {
                     : (_ie != null && _ie > 1.5)
                       ? Math.min(25, (_ie - 1.5) * 10)
                       : 0;
+    // Glow — depth is the brightness driver; a 2× deep breath approaches the clamp ceiling.
     const glowBoost = isComplete ? 1.0
-                    : (_depthRatioStable != null && _depthRatioStable > 1.0)
-                      ? Math.min(3.0, _depthRatioStable)
+                    : (_depthRatio != null && _depthRatio > 1.0)
+                      ? 1.0 + 1.5 * (_depthRatio - 1.0)
                       : 1.0;
     fire.setEnvironment({ sparkRate, glowBoost });
 
@@ -1011,6 +1204,7 @@ const GameApp = (() => {
     // Once both gates pass, enter ACTIVE (from IDLE or PAUSED)
     if (_gameState === STATE_IDLE || _gameState === STATE_PAUSED) {
       _gameState = STATE_ACTIVE;
+      if (_sessionStartMs === null) _sessionStartMs = performance.now();
     }
 
     if (_gameState !== STATE_ACTIVE) {
@@ -1018,33 +1212,84 @@ const GameApp = (() => {
       return;
     }
 
-    // ---- Contribution rates ----
+    // Session capture — one sample per ACTIVE tick.  Ensure the session
+    // start-time is initialised no matter HOW we entered ACTIVE state
+    // (fresh calibration path, Replay jump, or demo-toggle jump — the last
+    // two skip the IDLE→ACTIVE branch that used to set this).
+    if (_sessionStartMs === null) _sessionStartMs = performance.now();
+
+    // `gain` is the combined rate × motion gate applied to the stabilized
+    // value; per-sub-gate values are logged for diagnostics so the summary
+    // can attribute suppression to a specific cause.
+    if (_depthRatio != null) {
+      _sessionLog.push({
+        t:          (performance.now() - _sessionStartMs) / 1000,
+        raw:        _depthRatio,         // raw depthRatio (drives palette/wobble/life)
+        amp:        _depthAmp,           // exponentially amplified (drives height/width + progress)
+        held:       _isHeld,
+        rate:       _rate,               // BPM from computeRate(10)
+        rest:       _restlessness,
+        deltaGate:  _lastDeltaGate,      // motion-delta gate on progress
+        cycles10:   _cyclesIn10s,        // peaks in last 10 s
+        pace:       _paceReward,         // pace multiplier on progress
+        ie:         _ie,                 // E:I ratio (progress bonus + palette)
+      });
+    }
+
+    // ---- Contribution rate ----
+    // Progress reflects the FLAME'S OWN VISUAL STATE: whatever grows, brightens,
+    // or sends up embers grows the bar.  Computed inline from the same signals
+    // the flame reads, so the two are always in sync by construction.
+    //
+    //   sizeScore     ← amplified depth above baseline (drives flame H × W)
+    //   brightScore   ← raw depth + IE warmth term (drives paletteShift)
+    //   emberScore    ← IE > 1.5 (drives sparkRate)
+    //
+    // Binary decouple: progress FREEZES when either
+    //   (a) motion delta gate closes (sudden body shift), or
+    //   (b) pace-reward drops (breathing too fast).
+    // Progress isn't smoothly attenuated — it's on or off, matching the "you
+    // can't earn calm while moving fast or restless" intuition.
     let rate = 0;
+    let sizeScore = 0, brightScore = 0, emberScore = 0, flameScore = 0;
+    const decoupled = (_lastDeltaGate < DECOUPLE_MOTION) || (_paceReward < DECOUPLE_PACE);
 
-    // Depth: positive only, scales with how deep beyond normal.
-    // Uses the STABILIZED value so single-tick amplitude spikes from body
-    // shifts don't leak into game progression, and sustained deep breaths
-    // are super-linearly rewarded via the expansion curve.
-    if (_depthRatioStable != null && isFinite(_depthRatioStable)) {
-      rate += Math.max(0, _depthRatioStable - 1.0) * DEPTH_RATE;
+    if (_depthAmp != null && isFinite(_depthAmp) && !decoupled) {
+      // Size — matches FlameField's height/width formulas (uses drAmp)
+      sizeScore = Math.max(0, _depthAmp - 1.0);
+
+      // Brightness — matches FlameField's targetPaletteShift formula
+      const dr     = _depthRatio || 1.0;
+      const ie     = _ie || 1.0;
+      const ieNorm = Math.max(0.6, Math.min(2.2, ie / 1.3));
+      brightScore  = Math.max(0, (dr - 1.0) * 0.4 + (ieNorm - 1.0) * 1.4);
+
+      // Embers — matches setEnvironment's sparkRate formula
+      emberScore = (_ie != null && _ie > 1.5) ? Math.min(2.5, (_ie - 1.5) * 2) : 0;
+
+      // Combined score — size is the dominant term; brightness and embers
+      // are multiplicative bonuses so they compound (bright deep breath with
+      // long exhale outpaces a plain deep breath).
+      flameScore = sizeScore * (1 + 0.4 * brightScore) * (1 + 0.3 * emberScore);
+
+      rate = flameScore * FLAME_RATE;
     }
 
-    // E:I: positive only, scales with how extended the exhale is
-    if (_ie != null && isFinite(_ie)) {
-      rate += Math.max(0, _ie - 1.0) * IE_RATE;
-    }
-
-    // Regularity: positive contribution only for now — irregular-breath
-    // penalty is intentionally commented out while we feel out whether the
-    // negative pressure makes the game feel punitive or motivating.
-    if (_regularity != null && isFinite(_regularity)) {
-      if (_regularity < REG_GOOD_CV) {
-        rate += REG_POS_MAX * (1 - _regularity / REG_GOOD_CV);
-      }
-      // else if (_regularity > REG_BAD_CV) {
-      //   const over = Math.min(1, (_regularity - REG_BAD_CV) / 0.30);
-      //   rate -= REG_NEG_MAX * over;
-      // }
+    // Diagnostic — dump the score components every 5 s so we can see WHY
+    // progress isn't accumulating.  Common culprits:
+    //   • sizeScore ≈ 0  → depth barely above baseline (calibration or shallow)
+    //   • decoupled=true → pace suppression or motion event freezing the bar
+    if (!_lastDebugAt || (performance.now() - _lastDebugAt) > 5000) {
+      _lastDebugAt = performance.now();
+      console.log(
+        `[Clarity progress] state=${_gameState} progress=${(_progress*100).toFixed(1)}% `
+        + `rate=${rate.toFixed(5)}/s decoupled=${decoupled} `
+        + `(size=${sizeScore.toFixed(2)} bright=${brightScore.toFixed(2)} `
+        + `embers=${emberScore.toFixed(2)} → flameScore=${flameScore.toFixed(2)}) `
+        + `depth=${(_depthRatio || 0).toFixed(2)} amp=${(_depthAmp || 0).toFixed(2)} `
+        + `pace=${_paceReward.toFixed(2)} [cycles=${_cyclesIn10s}] `
+        + `deltaGate=${_lastDeltaGate.toFixed(2)} [rest=${_restlessness == null ? 'null' : _restlessness.toFixed(3)}]`
+      );
     }
 
     _progress = Math.max(0, Math.min(1, _progress + rate * dt));
@@ -1061,6 +1306,8 @@ const GameApp = (() => {
     if (_progress >= 1 && _gameState !== STATE_COMPLETE) {
       _gameState = STATE_COMPLETE;
       phoenix.triggerEmerge();
+      const btn = document.getElementById('session-btn');
+      if (btn && _sessionLog.length > 0) btn.style.display = 'inline-block';
     }
 
     _renderProgressUI();
@@ -1085,7 +1332,7 @@ const GameApp = (() => {
       } else if (!_trackingGreen) {
         text.textContent = 'waiting for camera lock';
       } else if (!_isCalibrated) {
-        text.textContent = 'calibrating breath…';
+        text.textContent = 'sit still and breathe naturally';
       } else {
         text.textContent = 'preparing…';
       }
@@ -1123,8 +1370,11 @@ const GameApp = (() => {
     phoenix.alpha     = 0;
     phoenix.scale     = 0.5;
     phoenix.timer     = 0;
-    _stabilizer.reset();
-    _depthRatioStable = null;
+    _sessionLog       = [];
+    _sessionStartMs   = null;
+    const sBtn = document.getElementById('session-btn');
+    if (sBtn) sBtn.style.display = 'none';
+    _closeSessionModal();
     // If we're already calibrated + tracking, jump straight to ACTIVE.
     // Otherwise sit at IDLE until both gates clear.
     _gameState = (_isCalibrated && _trackingGreen) ? STATE_ACTIVE : STATE_IDLE;
@@ -1132,8 +1382,216 @@ const GameApp = (() => {
     if (btn) btn.style.display = 'none';
   }
 
+  // -----------------------------------------------------------
+  // Session-capture modal + dual-trace graph
+  //   Plots raw depthRatio (from BreathAnalyzer, no processing) against
+  //   stabilized depthRatio (after BreathStabilizer) on the same time axis
+  //   so we can visually assess how much movement-spike rejection + deep-
+  //   breath amplification the stabilizer applied.
+  // -----------------------------------------------------------
+  const _GRAPH_PX_PER_SEC = 20;      // horizontal density
+  const _GRAPH_HEIGHT     = 720;     // must match .session-graph-canvas CSS height
+  const _GRAPH_Y_MAX      = 12;      // fixed Y range; spikes stay on-scale, breathing detail preserved
+  const _GRAPH_PAD_L      = 44;
+  const _GRAPH_PAD_R      = 20;
+  const _GRAPH_PAD_T      = 18;
+  const _GRAPH_PAD_B      = 30;
+
+  function _openSessionModal() {
+    const modal = document.getElementById('session-modal');
+    if (!modal || _sessionLog.length === 0) return;
+    modal.style.display = 'flex';
+    _drawSessionGraph();
+
+    // Y-range is fixed at 0..12 but breathing lives in the 0..3 band at the
+    // bottom of the plot.  Snap the scroll to the bottom so the interesting
+    // region is visible first; the user scrolls up to inspect any spikes.
+    const scroll = modal.querySelector('.session-graph-scroll');
+    if (scroll) {
+      scroll.scrollTop  = scroll.scrollHeight;
+      scroll.scrollLeft = 0;
+    }
+
+    const summary = document.getElementById('session-summary');
+    if (summary) {
+      const dur    = _sessionLog[_sessionLog.length - 1].t;
+      const rawMax = _sessionLog.reduce((m, s) => Math.max(m, s.raw), 0);
+
+      // Attribute throttling on PROGRESS: count samples where motion delta gate
+      // or pace multiplier dropped below 0.7.  These are independent — a sample
+      // can be throttled by both simultaneously.
+      let byMotion = 0, byPace = 0;
+      const paceSum   = _sessionLog.reduce((a, s) => a + (s.pace       != null ? s.pace       : 1), 0);
+      const motionSum = _sessionLog.reduce((a, s) => a + (s.deltaGate  != null ? s.deltaGate  : 1), 0);
+      const meanPace   = paceSum   / _sessionLog.length;
+      const meanMotion = motionSum / _sessionLog.length;
+      for (const s of _sessionLog) {
+        if ((s.deltaGate != null ? s.deltaGate : 1) < 0.7) byMotion++;
+        if ((s.pace      != null ? s.pace      : 1) < 0.7) byPace++;
+      }
+
+      const ampMax = _sessionLog.reduce((m, s) => (s.amp != null ? Math.max(m, s.amp) : m), 0);
+      summary.textContent =
+        `${_sessionLog.length} samples · ${dur.toFixed(0)}s · `
+        + `peak depth raw ${rawMax.toFixed(2)} → amplified ${ampMax.toFixed(2)} · `
+        + `mean motion-gate ${(meanMotion * 100).toFixed(0)}% · mean pace ${(meanPace * 100).toFixed(0)}% · `
+        + `progress throttled by — motion ${byMotion}s · fast-pace ${byPace}s`;
+    }
+  }
+
+  function _closeSessionModal() {
+    const modal = document.getElementById('session-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function _drawSessionGraph() {
+    const canvas = document.getElementById('session-graph-canvas');
+    if (!canvas || _sessionLog.length === 0) return;
+    const ctx = canvas.getContext('2d');
+
+    const duration = Math.max(1, _sessionLog[_sessionLog.length - 1].t);
+    const yMax = _GRAPH_Y_MAX;   // fixed range so peak-to-peak breathing detail is comparable across sessions
+    const yMin = 0;
+
+    // Retina-crisp sizing
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth  = Math.max(600, duration * _GRAPH_PX_PER_SEC + _GRAPH_PAD_L + _GRAPH_PAD_R);
+    const cssHeight = _GRAPH_HEIGHT;
+    canvas.style.width  = cssWidth  + 'px';
+    canvas.style.height = cssHeight + 'px';
+    canvas.width  = Math.floor(cssWidth  * dpr);
+    canvas.height = Math.floor(cssHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+    const plotL = _GRAPH_PAD_L;
+    const plotR = cssWidth - _GRAPH_PAD_R;
+    const plotT = _GRAPH_PAD_T;
+    const plotB = cssHeight - _GRAPH_PAD_B;
+    const plotW = plotR - plotL;
+    const plotH = plotB - plotT;
+
+    const xOf = (t) => plotL + (t / duration) * plotW;
+    const yOf = (v) => plotB - ((v - yMin) / (yMax - yMin)) * plotH;
+
+    // Y grid + labels at each 1.0 (fine 0.5 sub-grid inside 0..3 for breath detail)
+    ctx.font = '10px Georgia, serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'right';
+    for (let v = 0; v <= yMax + 0.001; v += 0.5) {
+      const isBaseline = Math.abs(v - 1.0) < 0.001;
+      const isMajor    = Math.abs(v - Math.round(v)) < 0.001;
+      // Sub-grid only in the low-amplitude region where breathing lives
+      if (!isMajor && !isBaseline && v > 3.0) continue;
+      const y = yOf(v);
+      ctx.strokeStyle = isBaseline
+        ? 'rgba(200, 190, 220, 0.4)'
+        : (isMajor ? 'rgba(120, 90, 200, 0.14)' : 'rgba(120, 90, 200, 0.06)');
+      ctx.setLineDash(isBaseline ? [4, 4] : []);
+      ctx.beginPath();
+      ctx.moveTo(plotL, y);
+      ctx.lineTo(plotR, y);
+      ctx.stroke();
+      if (isMajor || isBaseline) {
+        ctx.fillStyle = 'rgba(200, 190, 220, 0.5)';
+        ctx.fillText(v.toFixed(v < 1.01 && v > 0.01 ? 1 : 0), plotL - 6, y);
+      }
+    }
+    ctx.setLineDash([]);
+
+    // X grid + labels every 10 s
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let t = 0; t <= duration + 0.001; t += 10) {
+      const x = xOf(t);
+      ctx.strokeStyle = 'rgba(120, 90, 200, 0.10)';
+      ctx.beginPath();
+      ctx.moveTo(x, plotT);
+      ctx.lineTo(x, plotB);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(200, 190, 220, 0.5)';
+      ctx.fillText(t.toFixed(0) + 's', x, plotB + 6);
+    }
+
+    // Breath-hold shading (light-blue vertical bands over held ticks)
+    ctx.fillStyle = 'rgba(80, 160, 255, 0.14)';
+    for (const s of _sessionLog) {
+      if (!s.held) continue;
+      const x = xOf(s.t);
+      const bw = Math.max(4, plotW / duration);   // ~1s band
+      ctx.fillRect(x - bw / 2, plotT, bw, plotH);
+    }
+
+    // Suppression strips — two stacked bands at the top of the plot:
+    //   Row 1 (red)    — motion-delta gate on depth signal (0 = suppressed)
+    //   Row 2 (orange) — pace multiplier on progress + flame size (0 = suppressed)
+    // Opacity scales with (1 - value), so a fully-passed sample shows nothing
+    // and a fully-suppressed sample shows solid colour.  Makes the CAUSE of
+    // stagnation immediately visible: motion-only, pace-only, or both.
+    const STRIP_H = 8;
+    for (const s of _sessionLog) {
+      const x  = xOf(s.t);
+      const bw = Math.max(4, plotW / duration);
+      const motion = (s.deltaGate != null && isFinite(s.deltaGate)) ? s.deltaGate : 1.0;
+      const pace   = (s.pace      != null && isFinite(s.pace))      ? s.pace      : 1.0;
+      if (motion < 0.999) {
+        ctx.fillStyle = `rgba(220, 80, 90, ${(1 - motion) * 0.7})`;
+        ctx.fillRect(x - bw / 2, plotT, bw, STRIP_H);
+      }
+      if (pace < 0.999) {
+        ctx.fillStyle = `rgba(240, 150, 50, ${(1 - pace) * 0.7})`;
+        ctx.fillRect(x - bw / 2, plotT + STRIP_H, bw, STRIP_H);
+      }
+    }
+
+    // Raw depth trace — the "physical" breath depth (drives palette / wobble / life).
+    ctx.strokeStyle = 'rgba(180, 180, 210, 0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    _sessionLog.forEach((s, i) => {
+      const x = xOf(s.t);
+      const y = yOf(s.raw);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Amplified depth trace — what actually drives flame height/width + progress.
+    // A widening gap between this and the raw trace means deep breaths are being
+    // rewarded strongly.
+    ctx.strokeStyle = '#ff8a3d';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    let ampStarted = false;
+    for (const s of _sessionLog) {
+      if (s.amp == null) continue;
+      const x = xOf(s.t);
+      const y = yOf(s.amp);
+      if (!ampStarted) { ctx.moveTo(x, y); ampStarted = true; }
+      else             { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+
+    // Axis labels
+    ctx.fillStyle = 'rgba(200, 190, 220, 0.55)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('depth ratio', plotL, 2);
+    ctx.textAlign = 'right';
+    ctx.fillText('time (s)', plotR, plotB + 6);
+  }
+
   function _onSignal(flags) { _setTracking(flags); }
-  function _onMsg(_msg)     { /* unused */ }
+  function _onMsg(msg) {
+    // Backend emits `posture.restlessness` in hr_result messages (~1 Hz).
+    // Save the prior value BEFORE overwriting so the motion gate can compute a
+    // frame-to-frame delta — that's how we tell "movement in progress" apart
+    // from "movement just finished but window still lingering".
+    if (msg && msg.type === 'hr_result' && msg.posture
+        && msg.posture.restlessness != null) {
+      _restPrev     = _restlessness;
+      _restlessness = msg.posture.restlessness;
+    }
+  }
 
   function _setTracking(flags) {
     const dot  = document.getElementById('track-dot');

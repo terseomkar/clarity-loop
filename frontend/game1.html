@@ -27,7 +27,33 @@
   <div class="game-progress-status" id="progress-text">waiting for signal…</div>
 </div>
 
-<button id="replay-btn" class="replay-btn" type="button" style="display:none">Replay</button>
+<div class="post-session-actions">
+  <button id="replay-btn" class="post-session-btn" type="button" style="display:none">Replay</button>
+  <button id="session-btn" class="post-session-btn" type="button" style="display:none">Session Capture</button>
+</div>
+
+<div id="session-modal" class="session-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="session-modal-title">
+  <div class="session-modal-content">
+    <div class="session-modal-header">
+      <span id="session-modal-title" class="session-modal-title">Session Capture</span>
+      <button id="session-modal-close" class="session-modal-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="session-modal-legend">
+      <span class="legend-item"><span class="legend-swatch legend-raw"></span>Raw depth (physical breath)</span>
+      <span class="legend-item"><span class="legend-swatch legend-stable"></span>Amplified (drives flame size + progress)</span>
+      <span class="legend-item"><span class="legend-swatch legend-hold"></span>Breath hold</span>
+      <span class="legend-item"><span class="legend-swatch legend-suppress"></span>Motion-gate suppression on progress</span>
+      <span class="legend-item"><span class="legend-swatch legend-pace"></span>Pace throttling on progress</span>
+      <span class="legend-item"><span class="legend-baseline"></span>Baseline (1.0)</span>
+    </div>
+    <div class="session-graph-scroll">
+      <canvas id="session-graph-canvas" class="session-graph-canvas"></canvas>
+    </div>
+    <div class="session-modal-footer">
+      <span id="session-summary" class="session-summary"></span>
+    </div>
+  </div>
+</div>
 
 <div class="mirror-status">
   <span class="dot-indicator" id="track-dot"></span>
@@ -45,6 +71,21 @@
   <span id="calib-text">calibrating</span>
 </div>
 
+<div class="audio-toggle">
+  <span class="demo-toggle-label">audio</span>
+  <button id="mute-btn" class="mute-btn" type="button" aria-label="Toggle audio" aria-pressed="false">
+    <svg class="mute-icon mute-icon-on"  viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
+      <path d="M16.5 12a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12z" fill="currentColor"/>
+      <path d="M14 3.23v2.06a7 7 0 0 1 0 13.42v2.06A9 9 0 0 0 14 3.23z" fill="currentColor"/>
+    </svg>
+    <svg class="mute-icon mute-icon-off" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
+      <path d="M16 8l6 6M22 8l-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>
+  </button>
+</div>
+
 <div class="demo-toggle">
   <span class="demo-toggle-label">demo speed</span>
   <label class="toggle-switch">
@@ -52,6 +93,9 @@
     <span class="toggle-slider"></span>
   </label>
 </div>
+
+<audio id="ambient-audio" loop preload="auto"
+       src="/audio/5%20Minute%20Native%20American%20Flute%20Meditation%20Music.mp3"></audio>
 
 <!-- Hidden camera + face mesh + pose (all running in background) -->
 <video id="camera-feed" playsinline muted autoplay class="hidden-video"></video>
@@ -61,7 +105,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script src="/static/js/websocket.js"></script>
 <script src="/static/js/camera.js"></script>
-<script src="/static/js/breath_stabilizer.js"></script>
 <script src="/static/js/game1.js"></script>
 </body>
 </html>

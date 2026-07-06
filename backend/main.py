@@ -50,7 +50,12 @@ logger = logging.getLogger("clarity_loop")
 app = FastAPI(title="Clarity Loop")
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+AUDIO_DIR    = Path(__file__).parent.parent / "audio"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+if AUDIO_DIR.exists():
+    # Meditation tracks used by the game/mirror UIs.  Kept outside frontend/
+    # so the raw source files aren't confused with build artefacts.
+    app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 
 # HR + RR detectors are algorithmically stateless — safe to share.
 # PostureDetector holds a rolling restlessness window per user, so it's

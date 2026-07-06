@@ -408,33 +408,123 @@ body {
   z-index: 1;
 }
 
-/* Replay button — appears after phoenix flies away */
-.replay-btn {
+/* Post-session actions — Replay + Session Capture buttons after the run completes */
+.post-session-actions {
   position: fixed;
   bottom: 132px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 12;
+  display: flex;
+  gap: 14px;
+}
+.post-session-btn {
   background: rgba(7, 8, 15, 0.6);
   border: 1px solid rgba(120, 90, 200, 0.4);
   border-radius: 8px;
-  padding: 10px 28px;
+  padding: 10px 22px;
   color: var(--text);
   font-family: Georgia, serif;
-  font-size: 12px;
-  letter-spacing: 4px;
+  font-size: 11px;
+  letter-spacing: 3px;
   text-transform: uppercase;
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: background 0.2s, transform 0.2s, border-color 0.2s;
 }
-.replay-btn:hover {
+.post-session-btn:hover {
   background: rgba(120, 90, 200, 0.22);
   border-color: var(--accent);
-  transform: translateX(-50%) translateY(-2px);
+  transform: translateY(-2px);
 }
-.replay-btn:active {
-  transform: translateX(-50%) translateY(0);
+.post-session-btn:active { transform: translateY(0); }
+
+/* Session capture modal — dual-trace graph of raw vs stabilized depth */
+.session-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(4, 3, 8, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.session-modal-content {
+  background: #0a0812;
+  border: 1px solid rgba(120, 90, 200, 0.35);
+  border-radius: 12px;
+  width: min(92vw, 1100px);
+  max-height: 88vh;
+  padding: 20px 24px;
+  color: var(--text);
+  font-family: Georgia, serif;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.session-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.session-modal-title {
+  font-size: 12px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(220, 210, 240, 0.85);
+}
+.session-modal-close {
+  background: transparent;
+  border: none;
+  color: rgba(220, 210, 240, 0.6);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.session-modal-close:hover { color: var(--accent); }
+.session-modal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.75);
+}
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.legend-swatch {
+  width: 18px; height: 3px; border-radius: 2px; display: inline-block;
+}
+.legend-raw      { background: rgba(180, 180, 210, 0.6); }
+.legend-stable   { background: #ff8a3d; }
+.legend-hold     { background: rgba(80, 160, 255, 0.28); height: 8px; }
+.legend-suppress { background: rgba(220, 80, 90, 0.55);  height: 8px; }
+.legend-pace     { background: rgba(240, 150, 50, 0.55); height: 8px; }
+.legend-baseline {
+  width: 18px; height: 0; display: inline-block;
+  border-top: 1px dashed rgba(200, 190, 220, 0.55);
+}
+.session-graph-scroll {
+  overflow: auto;                /* scrolls both axes — Y range is now 0–12 */
+  max-height: 60vh;              /* forces vertical scroll on tall canvases */
+  border-top: 1px solid rgba(120, 90, 200, 0.15);
+  border-bottom: 1px solid rgba(120, 90, 200, 0.15);
+  background: #050308;
+}
+.session-graph-canvas {
+  display: block;
+  height: 720px;                 /* fixed pixel height so 0–12 y-range renders */
+}
+.session-modal-footer {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.55);
 }
 
 /* Demo-speed toggle — bottom right */
@@ -456,6 +546,51 @@ body {
   border-radius: 18px;
   backdrop-filter: blur(8px);
 }
+/* Audio mute toggle — sits to the LEFT of the demo-speed toggle at the bottom */
+.audio-toggle {
+  position: fixed;
+  bottom: 20px;
+  right: 190px;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(216, 208, 232, 0.45);
+  font-style: italic;
+  background: rgba(7, 8, 15, 0.4);
+  padding: 8px 12px;
+  border-radius: 18px;
+  backdrop-filter: blur(8px);
+}
+.mute-btn {
+  background: transparent;
+  border: 1px solid rgba(120, 90, 200, 0.35);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(220, 210, 240, 0.7);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.mute-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.mute-icon { display: inline-block; line-height: 0; }
+.mute-btn .mute-icon-off { display: none; }
+.mute-btn[aria-pressed="true"] .mute-icon-on  { display: none; }
+.mute-btn[aria-pressed="true"] .mute-icon-off { display: inline-block; }
+.mute-btn[aria-pressed="true"] {
+  color: rgba(220, 100, 110, 0.85);
+  border-color: rgba(220, 100, 110, 0.5);
+}
+
 .toggle-switch {
   position: relative;
   display: inline-block;

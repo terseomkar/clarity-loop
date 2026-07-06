@@ -238,7 +238,7 @@ class FlameField {
 
     // depthRatio: 1 = normal, <0.7 shallow, >1.3 deep
     const dr = (depthRatio != null && isFinite(depthRatio))
-               ? Math.max(0.35, Math.min(2.8, depthRatio))
+               ? Math.max(0.35, Math.min(1.9, depthRatio))
                : 1.0;
     // rate: ~14 normal, fast >20, slow <8
     const rt = rate != null ? rate : 14;
@@ -483,9 +483,8 @@ const MirrorApp = (() => {
   let _baselineTidal        = null;
   let _lastBaselineUpdate   = 0;
 
-  // Cached slow metrics — raw depthRatio preserved; stabilized version drives the fire
-  let _rate = null, _depthRatio = null, _depthRatioStable = null, _ie = null, _isHeld = false;
-  const _stabilizer = new BreathStabilizer();
+  // Cached slow metrics
+  let _rate = null, _depthRatio = null, _ie = null, _isHeld = false;
 
   function init() {
     fire = new FlameField(document.getElementById('flame-canvas'));
@@ -547,12 +546,11 @@ const MirrorApp = (() => {
     const rate = BreathAnalyzer.computeRate(30);
     if (rate != null) _rate = rate;
 
-    // Depth ratio — raw stays untouched for future metrics; stabilized drives the fire
+    // Depth ratio
     const curAmp = BreathAnalyzer.computeAmplitude(10);
     _depthRatio = (curAmp != null && _baselineTidal != null && _baselineTidal > 0)
                   ? curAmp / _baselineTidal
                   : null;
-    _depthRatioStable = _stabilizer.update(_depthRatio, performance.now());
 
     // E:I ratio (uses falling / rising — falling phase is exhale per our convention)
     const ie = BreathAnalyzer.computeIE(20);
@@ -567,7 +565,7 @@ const MirrorApp = (() => {
 
     fire.setBreathState({
       rate:        _rate,
-      depthRatio:  _depthRatioStable,
+      depthRatio:  _depthRatio,
       ieRatio:     _ie,
       isHeld:      _isHeld,
     });
