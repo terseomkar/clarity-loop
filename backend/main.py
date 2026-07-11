@@ -88,6 +88,12 @@ async def game1():
     return FileResponse(FRONTEND_DIR / "game1.html")
 
 
+@app.get("/game2")
+async def game2():
+    """Game 2 — ambient bird-call counting meditation with Grandmaster Oshi."""
+    return FileResponse(FRONTEND_DIR / "game2.html")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "clarity-loop"}

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarity Loop — Game 2</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body class="mirror-body">
+
+<!-- Grandmaster Oshi — 3-second AI-generated clip.  `loop` restarts it
+     seamlessly for the entire session length; `muted` + `playsinline` +
+     `autoplay` satisfy browser autoplay policies so it starts without
+     user interaction.  Poster falls back to the reference still if the
+     video is still buffering. -->
+<video id="oshi-media" class="oshi-media"
+       src="/static/video/oshi.mp4"
+       poster="/static/img/oshi.png"
+       loop muted playsinline preload="auto"
+       aria-label="Grandmaster Oshi meditating in a mossy forest"></video>
+
+<!-- Firefly-mote animation overlay on top of Oshi (light animation only) -->
+<canvas id="oshi-canvas" class="oshi-canvas"></canvas>
+
+<!-- Subtle vignette to darken edges for text legibility -->
+<div class="oshi-vignette"></div>
+
+<nav class="mode-nav mirror-nav">
+  <a href="/" class="mode-link">Sensing</a>
+  <a href="/observe" class="mode-link">Observation</a>
+  <a href="/mirror" class="mode-link">Mirror</a>
+  <a href="/game1" class="mode-link">Game 1</a>
+  <a href="/game2" class="mode-link active">Game 2</a>
+</nav>
+
+<!-- =========================================================
+     SETUP screen — duration + mode picker
+     ========================================================= -->
+<div id="setup-screen" class="game2-screen game2-setup">
+  <div class="game2-title">grandmaster oshi</div>
+  <div class="game2-subtitle">count the bird calls as they pass through</div>
+
+  <div class="game2-picker-group">
+    <div class="game2-picker-label">duration</div>
+    <div class="game2-picker-row">
+      <button class="game2-picker-btn" data-duration="120">2 min</button>
+      <button class="game2-picker-btn" data-duration="300">5 min</button>
+      <button class="game2-picker-btn" data-duration="600">10 min</button>
+      <label class="game2-custom-input">
+        <input type="number" id="custom-duration" min="2" max="60" step="1" placeholder="custom (min)">
+      </label>
+    </div>
+  </div>
+
+  <div class="game2-picker-group">
+    <div class="game2-picker-label">how will you count</div>
+    <div class="game2-picker-row game2-mode-row">
+      <button class="game2-mode-card" data-mode="interactive">
+        <div class="game2-mode-title">interactive</div>
+        <div class="game2-mode-desc">click anywhere each time a bird sings</div>
+      </button>
+      <button class="game2-mode-card" data-mode="eyes-closed">
+        <div class="game2-mode-title">eyes closed</div>
+        <div class="game2-mode-desc">close your eyes, count silently, report at the end</div>
+      </button>
+    </div>
+  </div>
+
+  <button id="begin-btn" class="game2-begin-btn" type="button" disabled>begin</button>
+</div>
+
+<!-- =========================================================
+     COUNTDOWN screen — brief 3-2-1 before the session starts
+     ========================================================= -->
+<div id="countdown-screen" class="game2-screen game2-countdown" style="display:none">
+  <div class="game2-countdown-num" id="countdown-num">3</div>
+</div>
+
+<!-- =========================================================
+     ACTIVE screen — session in progress.  Interactive mode: click
+     anywhere to log a tap.  Eyes-closed mode: no visible UI at all.
+     ========================================================= -->
+<div id="active-screen" class="game2-screen game2-active" style="display:none">
+  <!-- Elapsed / remaining bar at the very bottom.  Minimal so it doesn't
+       compete with the visual.  Hidden by CSS in eyes-closed mode. -->
+  <div id="active-timebar" class="game2-timebar">
+    <div class="game2-timebar-fill" id="timebar-fill"></div>
+  </div>
+</div>
+
+<!-- =========================================================
+     REVEAL screen — session ended, show counts + framing
+     ========================================================= -->
+<div id="reveal-screen" class="game2-screen game2-reveal" style="display:none">
+  <div id="reveal-inner" class="game2-reveal-inner">
+    <!-- Interactive: shown immediately.
+         Eyes-closed: input first, then reveal on submit. -->
+    <div id="reveal-input" class="game2-reveal-input" style="display:none">
+      <div class="game2-reveal-prompt">how many did you hear?</div>
+      <input type="number" id="reveal-count-input" min="0" step="1" inputmode="numeric" />
+      <button id="reveal-submit-btn" class="game2-begin-btn" type="button">reveal</button>
+    </div>
+
+    <div id="reveal-result" class="game2-reveal-result" style="display:none">
+      <div class="game2-reveal-line">
+        you heard <span class="game2-count game2-count-you" id="reveal-you">0</span>
+      </div>
+      <div class="game2-reveal-line">
+        <span class="game2-count game2-count-actual" id="reveal-actual">0</span> birds sang
+      </div>
+      <div class="game2-reveal-framing" id="reveal-framing"></div>
+      <button id="reveal-again-btn" class="game2-begin-btn" type="button">again</button>
+    </div>
+  </div>
+</div>
+
+<!-- Waterfall ambient audio is managed entirely by game2.js as two
+     crossfading Audio() elements — the HTML <audio loop> attribute has
+     a small gap at the boundary that reads as an abrupt pause during
+     meditation.  A ~3-s crossfade between two players eliminates that. -->
+
+<script src="/static/js/game2.js"></script>
+</body>
+</html>

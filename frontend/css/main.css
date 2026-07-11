@@ -660,3 +660,293 @@ body {
   width: 100%;
   height: 90px;
 }
+
+/* =====================================================================
+   Game 2 — Grandmaster Oshi, bird-call counting meditation
+   ===================================================================== */
+
+/* Oshi visual: the 3-s AI-generated video (or image fallback) framed
+   like a painting inside the viewport.  Padded on all sides so the
+   setup UI has breathing room and Oshi doesn't dominate the whole
+   screen.  object-fit: contain keeps the entire scene visible
+   (no cropping); the dark body background fills the letterbox areas.
+   No CSS scale-breathing animation — the video already carries its
+   own motion, and adding a CSS breathing on top of that produced a
+   subtle jitter. */
+.oshi-media {
+  position: fixed;
+  top: 5vh;
+  left: 5vw;
+  width: 90vw;
+  height: 90vh;
+  object-fit: contain;
+  z-index: 0;
+}
+.oshi-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+.oshi-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(4, 3, 8, 0.55) 100%);
+}
+
+/* Screen containers — layered above the visual */
+.game2-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  box-sizing: border-box;
+  color: var(--text);
+  font-family: Georgia, serif;
+  text-align: center;
+  pointer-events: none;  /* children opt in */
+}
+.game2-screen > * { pointer-events: auto; }
+
+/* Setup screen ---------------------------------------------------- */
+.game2-title {
+  font-size: 32px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: rgba(240, 232, 250, 0.92);
+  margin-bottom: 8px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+.game2-subtitle {
+  font-size: 15px;
+  font-style: italic;
+  color: rgba(220, 210, 240, 0.75);
+  margin-bottom: 44px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.game2-picker-group {
+  margin-bottom: 32px;
+  width: min(720px, 90vw);
+}
+.game2-picker-label {
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.6);
+  margin-bottom: 14px;
+}
+.game2-picker-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.game2-picker-btn,
+.game2-custom-input input,
+.game2-mode-card {
+  background: rgba(7, 8, 15, 0.55);
+  border: 1px solid rgba(120, 90, 200, 0.35);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: Georgia, serif;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+.game2-picker-btn {
+  padding: 12px 22px;
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+.game2-picker-btn:hover,
+.game2-mode-card:hover {
+  background: rgba(120, 90, 200, 0.22);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.game2-picker-btn.selected,
+.game2-mode-card.selected {
+  background: rgba(120, 90, 200, 0.32);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.game2-custom-input {
+  display: inline-flex;
+  align-items: center;
+}
+.game2-custom-input input {
+  padding: 12px 16px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  width: 160px;
+  outline: none;
+  text-align: center;
+}
+.game2-custom-input input::placeholder {
+  color: rgba(200, 190, 220, 0.4);
+  text-transform: lowercase;
+}
+.game2-mode-row {
+  gap: 20px;
+}
+.game2-mode-card {
+  padding: 20px 24px;
+  width: 260px;
+  text-align: center;
+}
+.game2-mode-title {
+  font-size: 13px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(240, 232, 250, 0.9);
+  margin-bottom: 8px;
+}
+.game2-mode-desc {
+  font-size: 12px;
+  font-style: italic;
+  color: rgba(200, 190, 220, 0.7);
+  line-height: 1.4;
+}
+.game2-begin-btn {
+  margin-top: 12px;
+  padding: 14px 44px;
+  background: rgba(120, 90, 200, 0.30);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.2s, transform 0.2s;
+}
+.game2-begin-btn:hover:not(:disabled) {
+  background: rgba(120, 90, 200, 0.45);
+  transform: translateY(-2px);
+}
+.game2-begin-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Countdown screen ---------------------------------------------------- */
+.game2-countdown-num {
+  font-size: 96px;
+  color: rgba(240, 232, 250, 0.92);
+  letter-spacing: 6px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 40px rgba(120, 90, 200, 0.6),
+               0 2px 20px rgba(0, 0, 0, 0.7);
+  animation: g2-countdown-pulse 1s ease-in-out infinite;
+}
+@keyframes g2-countdown-pulse {
+  0%, 100% { transform: scale(1.0);   opacity: 0.92; }
+  50%      { transform: scale(1.06);  opacity: 1.0; }
+}
+
+/* Active screen ------------------------------------------------------- */
+.game2-active {
+  justify-content: flex-end;   /* time bar sits at bottom */
+  pointer-events: none;        /* children opt in; window listens for taps */
+  padding: 0;
+}
+.game2-timebar {
+  width: min(720px, 80vw);
+  height: 2px;
+  background: rgba(200, 190, 220, 0.15);
+  border-radius: 1px;
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+.game2-timebar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(120, 90, 200, 0.5), rgba(240, 200, 150, 0.7));
+  transition: width 0.1s linear;
+}
+
+/* Eyes-closed mode: hide the timebar entirely — no visual cues */
+body.game2-mode-eyes-closed .game2-timebar { display: none; }
+
+/* Tap ripple — small expanding circle at click position */
+.game2-ripple {
+  position: fixed;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+  margin-top: -10px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(240, 200, 150, 0.8);
+  z-index: 5;
+  pointer-events: none;
+  animation: g2-ripple 1.2s ease-out forwards;
+}
+@keyframes g2-ripple {
+  0%   { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(4.0); opacity: 0;   }
+}
+
+/* Reveal screen ------------------------------------------------------- */
+.game2-reveal-inner {
+  background: rgba(7, 8, 15, 0.55);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(120, 90, 200, 0.25);
+  border-radius: 12px;
+  padding: 40px 56px;
+  min-width: min(520px, 90vw);
+}
+.game2-reveal-prompt {
+  font-size: 14px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(220, 210, 240, 0.75);
+  margin-bottom: 20px;
+}
+#reveal-count-input {
+  background: rgba(7, 8, 15, 0.6);
+  border: 1px solid rgba(120, 90, 200, 0.35);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: Georgia, serif;
+  font-size: 24px;
+  padding: 12px 20px;
+  text-align: center;
+  width: 160px;
+  margin-bottom: 20px;
+  outline: none;
+}
+.game2-reveal-line {
+  font-size: 20px;
+  color: rgba(240, 232, 250, 0.92);
+  margin: 8px 0;
+  font-style: italic;
+}
+.game2-count {
+  font-size: 42px;
+  font-style: normal;
+  font-weight: normal;
+  margin: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.game2-count-you    { color: #f0c896; }
+.game2-count-actual { color: rgba(240, 232, 250, 0.95); }
+.game2-reveal-framing {
+  margin: 28px 0 24px;
+  font-size: 14px;
+  font-style: italic;
+  color: rgba(200, 190, 220, 0.75);
+  letter-spacing: 0.4px;
+  line-height: 1.5;
+}
