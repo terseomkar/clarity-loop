@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarity Loop — with Grandmaster Oshi</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body class="oshi-body">
+
+<!-- ================================================================
+     Ambient stage layers (behind everything).  4 drifting embers +
+     a soft radial vignette; both pointer-events:none so they never
+     eat clicks.  Colors + timings match the prototype verbatim.
+     ================================================================ -->
+<div class="oshi-embers" aria-hidden="true">
+  <span class="oshi-ember oshi-ember-1"></span>
+  <span class="oshi-ember oshi-ember-2"></span>
+  <span class="oshi-ember oshi-ember-3"></span>
+  <span class="oshi-ember oshi-ember-4"></span>
+</div>
+<div class="oshi-vignette" aria-hidden="true"></div>
+
+<!-- Landing-page ambient bed (welcome screen only).  Loops quietly behind
+     the branch; fades out and stops the moment the traveler clicks enter.
+     Autoplay-with-sound is browser-gated, so oshi_flow.js also arms a
+     first-gesture fallback.  Toggle button mutes/unmutes. -->
+<audio id="ambient-audio" loop preload="auto"
+       src="/audio/soundreality-fluorescent-forest-ambient-536763.mp3"></audio>
+<div id="audio-toggle" class="audio-toggle" style="display:none">
+  <span class="demo-toggle-label">audio</span>
+  <button id="mute-btn" class="mute-btn" type="button" aria-label="Toggle audio" aria-pressed="false">
+    <svg class="mute-icon mute-icon-on"  viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
+      <path d="M16.5 12a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12z" fill="currentColor"/>
+      <path d="M14 3.23v2.06a7 7 0 0 1 0 13.42v2.06A9 9 0 0 0 14 3.23z" fill="currentColor"/>
+    </svg>
+    <svg class="mute-icon mute-icon-off" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
+      <path d="M16 8l6 6M22 8l-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Progress dots (survey steps only: sensation, intensity, body, emotion).
+     Rendered by oshi_flow.js; back-navigable to any answered step. -->
+<div id="oshi-progress" class="oshi-progress" style="display:none"></div>
+
+<!-- ================================================================
+     Center stage — the current screen renders into #oshi-stage-inner.
+     One container per screen so we can just toggle .active without
+     rebuilding the whole tree on every transition.  Each screen owns
+     the enter animation via CSS.
+     ================================================================ -->
+<div class="oshi-stage">
+  <div id="oshi-stage-inner" class="oshi-stage-inner">
+
+    <!-- 4.1 · welcome ------------------------------------------------- -->
+    <section id="scr-welcome" class="oshi-screen" data-screen="welcome">
+      <img src="/static/img-rune-circle/rune_circle.png" alt="" aria-hidden="true"
+           class="rune-circle">
+      <div class="oshi-eyebrow">with grandmaster oshi</div>
+      <div class="oshi-title">clarity loop</div>
+      <div class="oshi-tagline">a moment on the branch, before you play</div>
+      <button class="oshi-btn oshi-btn-enter" data-oshi-begin>enter</button>
+    </section>
+
+    <!-- 4.2 · sensation --------------------------------------------- -->
+    <section id="scr-sensation" class="oshi-screen" data-screen="sensation">
+      <div class="oshi-instruction" data-instr></div>
+      <div class="oshi-chips" id="chips-row"></div>
+      <input class="oshi-other-input" id="other-input" type="text"
+             placeholder="name it, then press enter…" style="display:none" />
+    </section>
+
+    <!-- 4.3 · intensity + r_intensity (same component) ---------------- -->
+    <section id="scr-intensity" class="oshi-screen" data-screen="intensity">
+      <div class="oshi-instruction" data-instr></div>
+      <div class="oshi-ring-wrap" id="ring-wrap">
+        <div class="oshi-ring-track"></div>
+        <div class="oshi-ring" id="ring-el"></div>
+        <div class="oshi-ring-center"></div>
+      </div>
+    </section>
+
+    <!-- 4.4 · body — verbatim SVG silhouette with invisible hit regions -->
+    <section id="scr-body" class="oshi-screen" data-screen="body">
+      <div class="oshi-instruction" data-instr></div>
+      <svg id="body-svg" class="oshi-body-svg" viewBox="0 0 200 380">
+        <defs>
+          <linearGradient id="oshiSil" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#a892e0" stop-opacity="0.32"></stop>
+            <stop offset="1" stop-color="#7360b0" stop-opacity="0.17"></stop>
+          </linearGradient>
+          <filter id="oshiSilGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#9878e8" flood-opacity="0.5"></feDropShadow>
+          </filter>
+        </defs>
+        <!-- Single visible silhouette path (verbatim from prototype). -->
+        <g fill="url(#oshiSil)" filter="url(#oshiSilGlow)" style="pointer-events:none;">
+          <path d="M100 12 C113 12 122 22 121 36 C121 45 117 51 114 56 C119 60 126 63 134 69 C144 76 150 92 152 116 C154 143 153 172 151 196 C150 210 149 219 148 227 C148 234 143 236 139 233 C136 230 137 222 137 214 C136 192 134 166 132 142 C131 126 128 110 122 100 C124 122 120 140 119 156 C118 176 124 190 127 202 C130 230 128 262 126 292 C125 320 123 340 122 353 C122 360 126 364 130 365 C133 367 133 371 129 372 C121 373 114 371 112 365 C111 356 112 344 111 330 C110 300 109 270 108 242 C107 226 105 218 100 214 C95 218 93 226 92 242 C91 270 90 300 89 330 C88 344 89 356 88 365 C86 371 79 373 71 372 C67 371 67 367 70 365 C74 364 78 360 78 353 C77 340 75 320 74 292 C72 262 70 230 73 202 C76 190 82 176 81 156 C80 140 76 122 78 100 C72 110 69 126 68 142 C66 166 64 192 63 214 C63 222 64 230 61 233 C57 236 52 234 52 227 C51 219 50 210 49 196 C47 172 46 143 48 116 C50 92 56 76 66 69 C74 63 81 60 86 56 C83 51 79 45 79 36 C78 22 87 12 100 12 Z"></path>
+        </g>
+        <!-- Invisible hit regions — geometry verbatim; JS toggles fill/glow. -->
+        <g stroke="none" id="body-regions">
+          <ellipse data-region="arms"      cx="146" cy="160" rx="12" ry="58"></ellipse>
+          <ellipse data-region="arms"      cx="54"  cy="160" rx="12" ry="58"></ellipse>
+          <ellipse data-region="legs"      cx="116" cy="290" rx="16" ry="78"></ellipse>
+          <ellipse data-region="legs"      cx="84"  cy="290" rx="16" ry="78"></ellipse>
+          <circle  data-region="head"      cx="100" cy="34"  r="22"></circle>
+          <ellipse data-region="throat"    cx="100" cy="62"  rx="13" ry="11"></ellipse>
+          <ellipse data-region="chest"     cx="100" cy="106" rx="34" ry="28"></ellipse>
+          <ellipse data-region="shoulders" cx="100" cy="77"  rx="46" ry="11"></ellipse>
+          <ellipse data-region="belly"     cx="100" cy="152" rx="30" ry="24"></ellipse>
+          <ellipse data-region="core"      cx="100" cy="196" rx="30" ry="22"></ellipse>
+          <ellipse data-region="feet"      cx="119" cy="366" rx="16" ry="11"></ellipse>
+          <ellipse data-region="feet"      cx="81"  cy="366" rx="16" ry="11"></ellipse>
+        </g>
+      </svg>
+      <div class="oshi-body-label" id="body-label"></div>
+    </section>
+
+    <!-- 4.5 · emotion wheel ------------------------------------------ -->
+    <section id="scr-emotion" class="oshi-screen" data-screen="emotion">
+      <div class="oshi-instruction" data-instr></div>
+      <svg id="wheel-svg" class="oshi-wheel-svg" viewBox="0 0 800 800">
+        <!-- segments + labels built by oshi_flow.js via createElementNS -->
+      </svg>
+      <div class="oshi-emotion-sel" id="emotion-sel"></div>
+    </section>
+
+    <!-- 4.6 · offering ------------------------------------------------ -->
+    <section id="scr-offering" class="oshi-screen" data-screen="offering">
+      <div class="oshi-instruction" data-instr></div>
+      <div class="oshi-cards" id="paths-row"></div>
+    </section>
+
+    <!-- 4.7 · session — real games take over; this is a brief hand-off -->
+    <section id="scr-session" class="oshi-screen" data-screen="session">
+      <div class="oshi-orb"></div>
+      <div class="oshi-session-title" id="session-title"></div>
+      <div class="oshi-session-hint">the forest is holding the session</div>
+      <button class="oshi-btn oshi-btn-continue" data-oshi-next>begin the walk</button>
+    </section>
+
+    <!-- POST — r_intensity (reuses same ring markup, own container so
+         we can page into it independently from the pre-session one) -->
+    <section id="scr-r_intensity" class="oshi-screen" data-screen="r_intensity">
+      <div class="oshi-instruction" data-instr></div>
+      <div class="oshi-ring-wrap" id="r-ring-wrap">
+        <div class="oshi-ring-track"></div>
+        <div class="oshi-ring" id="r-ring-el"></div>
+        <div class="oshi-ring-center"></div>
+      </div>
+    </section>
+
+    <!-- 4.8 · reflection --------------------------------------------- -->
+    <section id="scr-reflection" class="oshi-screen" data-screen="reflection">
+      <div id="shift-visual" class="oshi-shift" style="display:none">
+        <div class="oshi-shift-side">
+          <div id="shift-before" class="oshi-shift-ring"></div>
+          <div class="oshi-shift-label oshi-shift-label-then">then</div>
+        </div>
+        <div class="oshi-shift-arrow">→</div>
+        <div class="oshi-shift-side">
+          <div id="shift-after" class="oshi-shift-ring"></div>
+          <div class="oshi-shift-label oshi-shift-label-now">now</div>
+        </div>
+      </div>
+      <div class="oshi-eyebrow oshi-eyebrow-question">a question to sit with</div>
+      <div class="oshi-contemplation" id="contemplation"></div>
+      <!-- Journal — free-form response, not persisted anywhere. Just a
+           space to put words to the question if any arrive. -->
+      <textarea id="reflection-journal" class="oshi-journal"
+                rows="4"
+                placeholder="if words arrive, let them land here…"
+                aria-label="journal your reflection"></textarea>
+      <div class="oshi-breathing-dot"></div>
+      <button class="oshi-btn oshi-btn-outline" data-oshi-next>return to the forest</button>
+    </section>
+
+    <!-- 4.9 · complete ----------------------------------------------- -->
+    <section id="scr-complete" class="oshi-screen" data-screen="complete">
+      <div class="oshi-title oshi-title-farewell">until the next stillness</div>
+      <div class="oshi-tagline">the branch remains, whenever the sky grows loud</div>
+      <button class="oshi-btn oshi-btn-restart" data-oshi-restart>begin again</button>
+    </section>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     Persistent Oshi portrait + spoken caption (bottom-left).
+     Image swaps per screen (portraits map in oshi_flow.js); the
+     caption is scripted-first then upgraded to the live Haiku line.
+     ================================================================ -->
+<div class="oshi-corner">
+  <div class="oshi-portrait" aria-label="Grandmaster Oshi">
+    <div id="oshi-portrait-img" class="oshi-portrait-img"></div>
+  </div>
+  <div class="oshi-caption">
+    <div class="oshi-name">grandmaster oshi</div>
+    <div class="oshi-line-wrap">
+      <span id="oshi-line" class="oshi-line"></span><span id="oshi-caret" class="oshi-caret">▌</span>
+    </div>
+  </div>
+</div>
+
+<!-- Nav — kept minimal so it doesn't compete with the stage. -->
+<nav class="mode-nav oshi-nav">
+  <a href="/survey" class="mode-link active">Survey</a>
+  <a href="/game1" class="mode-link">Game 1</a>
+  <a href="/game2" class="mode-link">Game 2</a>
+  <a href="/game3" class="mode-link">Game 3</a>
+  <a href="/game4" class="mode-link">Game 4</a>
+  <a href="/mirror" class="mode-link">Mirror</a>
+  <a href="/observe" class="mode-link">Observation</a>
+  <a href="/" class="mode-link">Sensing</a>
+</nav>
+
+<!-- Shared WebSocket client (used to talk to backend/main.py — same
+     connection carries oshi_line / intervention / reflection). -->
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/oshi_flow.js"></script>
+</body>
+</html>

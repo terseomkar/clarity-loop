@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarity Loop — Game 3</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body class="mirror-body">
+
+<!-- Full-viewport flame canvas — the box clock owns its size/shape; CV
+     only shapes its character (wobble, palette, glow) via setAdherence. -->
+<canvas id="flame-canvas" class="flame-canvas"></canvas>
+
+<nav class="mode-nav mirror-nav">
+  <a href="/survey" class="mode-link">Survey</a>
+  <a href="/" class="mode-link">Sensing</a>
+  <a href="/observe" class="mode-link">Observation</a>
+  <a href="/mirror" class="mode-link">Mirror</a>
+  <a href="/game1" class="mode-link">Game 1</a>
+  <a href="/game2" class="mode-link">Game 2</a>
+  <a href="/game3" class="mode-link active">Game 3</a>
+  <a href="/game4" class="mode-link">Game 4</a>
+</nav>
+
+<!-- =========================================================
+     SETUP — duration + guidance mode
+     ========================================================= -->
+<div id="setup-screen" class="game2-screen game2-setup game3-screen">
+  <div class="game2-title">follow the flame</div>
+  <div class="game2-subtitle">breathe with the fire — let it lead you</div>
+
+  <div class="game2-picker-group">
+    <div class="game2-picker-label">duration</div>
+    <div class="game2-picker-row">
+      <button class="game2-picker-btn" data-duration="120">2 min</button>
+      <button class="game2-picker-btn" data-duration="300">5 min</button>
+      <button class="game2-picker-btn" data-duration="600">10 min</button>
+      <label class="game2-custom-input">
+        <input type="number" id="custom-duration" min="1" max="60" step="1" placeholder="custom (min)">
+      </label>
+    </div>
+  </div>
+
+  <div class="game2-picker-group">
+    <div class="game2-picker-label">guidance</div>
+    <div class="game2-picker-row game2-mode-row">
+      <button class="game2-mode-card" data-mode="active">
+        <div class="game2-mode-title">active</div>
+        <div class="game2-mode-desc">breathe in · hold · out prompts guide you</div>
+      </button>
+      <button class="game2-mode-card" data-mode="passive">
+        <div class="game2-mode-title">passive</div>
+        <div class="game2-mode-desc">no words — follow the glow as it swells and settles</div>
+      </button>
+    </div>
+  </div>
+
+  <button id="begin-btn" class="game2-begin-btn" type="button">begin</button>
+</div>
+
+<!-- =========================================================
+     COUNTDOWN — 3·2·1
+     ========================================================= -->
+<div id="countdown-screen" class="game2-screen game2-countdown game3-screen" style="display:none">
+  <div class="game2-countdown-num" id="countdown-num">3</div>
+</div>
+
+<!-- =========================================================
+     ACTIVE — pacer running.  Flame is the visual; text below
+     names the current box-breath phase (active mode only).
+     ========================================================= -->
+<div id="active-screen" class="game3-active" style="display:none">
+  <div class="game3-hint">the fire steadies and brightens as your breath settles into the rhythm</div>
+
+  <div id="phase-guide" class="game3-phase-guide">
+    <div class="game3-phase-name" id="phase-name">breathe in</div>
+    <div class="game3-phase-count" id="phase-count">4</div>
+  </div>
+
+  <div class="game3-timebar-wrap">
+    <div class="game2-timebar">
+      <div class="game2-timebar-fill" id="timebar-fill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================
+     COMPLETE — session-capture graph + hand-off
+     ========================================================= -->
+<div id="complete-screen" class="game2-screen game3-complete" style="display:none">
+  <div class="game3-capture-card">
+    <div class="game3-capture-eyebrow">flame flow</div>
+    <div class="game3-capture-title">your breath, this session</div>
+    <canvas id="capture-canvas" class="game3-capture-canvas"></canvas>
+    <div class="game3-capture-legend">
+      <span class="game3-legend-item">
+        <span class="game3-legend-swatch game3-legend-raw"></span>your breath (raw)
+      </span>
+      <span class="game3-legend-item">
+        <span class="game3-legend-swatch game3-legend-target"></span>guided target
+      </span>
+      <span class="game3-legend-item">
+        <span class="game3-legend-swatch game3-legend-inhale"></span>inhale/exhale
+        ·
+        <span class="game3-legend-swatch game3-legend-hold"></span>hold
+      </span>
+    </div>
+    <div class="game3-capture-framing">notice how your body feels now — the settling that arrived without you forcing it.</div>
+    <div class="game3-capture-actions">
+      <button id="again-btn" class="game2-begin-btn" type="button">again</button>
+      <!-- Retrospective hand-off — /survey auto-resumes at r_intensity
+           when a survey was already in progress (path saved as game3). -->
+      <a href="/survey" class="game2-begin-btn">with grandmaster oshi</a>
+    </div>
+  </div>
+</div>
+
+<!-- Ambient Native American flute — same track as game1, muted preference
+     persists via localStorage. -->
+<audio id="ambient-audio" loop preload="auto"
+       src="/audio/5%20Minute%20Native%20American%20Flute%20Meditation%20Music.mp3"></audio>
+
+<div class="audio-toggle">
+  <span class="demo-toggle-label">audio</span>
+  <button id="mute-btn" class="mute-btn" type="button" aria-label="Toggle audio" aria-pressed="false">
+    <svg class="mute-icon mute-icon-on"  viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
+      <path d="M16.5 12a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12z" fill="currentColor"/>
+      <path d="M14 3.23v2.06a7 7 0 0 1 0 13.42v2.06A9 9 0 0 0 14 3.23z" fill="currentColor"/>
+    </svg>
+    <svg class="mute-icon mute-icon-off" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/>
+      <path d="M16 8l6 6M22 8l-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Hidden CV surface — driven entirely by game3.js -->
+<video id="camera-feed" playsinline muted autoplay class="hidden-video"></video>
+<canvas id="roi-canvas" class="hidden-video"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/camera.js"></script>
+<script src="/static/js/game3.js"></script>
+</body>
+</html>

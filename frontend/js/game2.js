@@ -32,6 +32,17 @@
   const CLUSTER_MIN_DELAY_S = 2.0;
   const CLUSTER_MAX_DELAY_S = 4.0;
   const AMBIENT_VOLUME      = 0.50;
+
+  // Guidance prompts — two phrases that alternate during the live session.
+  // Each fades in, holds for PROMPT_VISIBLE_S, then fades out; a new one
+  // begins every PROMPT_INTERVAL_S so the two alternate on that cadence.
+  const GUIDANCE_PROMPTS = [
+    'Rest your awareness on the bird calls',
+    'Let the water wash away what you don’t need',
+  ];
+  const PROMPT_VISIBLE_S     = 5;    // how long each phrase stays visible
+  const PROMPT_INTERVAL_S    = 25;   // start-to-start spacing (alternation)
+  const PROMPT_FIRST_DELAY_S = 4;    // brief settle before the first phrase
   const AMBIENT_SRC         = '/audio/800738__whisperingearth__small-waterfall-in-a-park.mp3';
   const CROSSFADE_S         = 3.0;   // overlap between waterfall loop iterations
   const COUNTDOWN_S         = 3;
@@ -270,6 +281,33 @@
     // Bird-call scheduler + progress-bar loop
     _scheduleNextBirdCall();
     _startProgressLoop();
+
+    // Alternating guidance prompts — shown in both modes.
+    _startGuidancePrompts();
+  }
+
+  // Fade each phrase in for PROMPT_VISIBLE_S, then out; the next phrase
+  // starts one PROMPT_INTERVAL_S later, alternating between the two.  All
+  // timers register in _timeouts so _clearAllTimeouts() cancels them when
+  // the session ends.
+  function _startGuidancePrompts() {
+    const el = document.getElementById('game2-prompt');
+    if (!el) return;
+    el.classList.remove('visible');
+
+    let idx = 0;
+    const showNext = () => {
+      if (_state !== 'ACTIVE') return;
+      el.textContent = GUIDANCE_PROMPTS[idx % GUIDANCE_PROMPTS.length];
+      el.classList.add('visible');
+      idx++;
+
+      _timeouts.push(setTimeout(() => el.classList.remove('visible'),
+                                PROMPT_VISIBLE_S * 1000));
+      _timeouts.push(setTimeout(showNext, PROMPT_INTERVAL_S * 1000));
+    };
+
+    _timeouts.push(setTimeout(showNext, PROMPT_FIRST_DELAY_S * 1000));
   }
 
   function _scheduleNextBirdCall() {

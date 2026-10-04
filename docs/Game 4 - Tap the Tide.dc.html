@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{background:#050308;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#d8d0e8;overflow:hidden;}
+  a{color:#9878e8;text-decoration:none;}
+  a:hover{color:#b7a2f2;}
+  @keyframes g4-pulse{0%,100%{transform:scale(1);opacity:.9;}50%{transform:scale(1.06);opacity:1;}}
+  @keyframes g4-fade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes g4-radar{0%{transform:translate(-50%,-50%) scale(.45);opacity:.8;}100%{transform:translate(-50%,-50%) scale(2.7);opacity:0;}}
+  @keyframes g4-tap{0%,100%{transform:scale(1);}45%{transform:scale(.72);}}
+  @keyframes g4-voice{0%,100%{opacity:.3;transform:scale(1);}50%{opacity:1;transform:scale(1.6);}}
+  @keyframes g4-breathe{0%,100%{opacity:.45;}50%{opacity:.8;}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+</helmet>
+
+<div style="position:fixed;inset:0;background:#050308;overflow:hidden;">
+
+  <div style="position:fixed;inset:0;background:radial-gradient(ellipse 90vw 70vh at 50% 40%, rgba(120,90,200,0.10) 0%, rgba(5,3,8,0) 62%);pointer-events:none;"></div>
+
+  <nav style="position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:40;background:rgba(7,8,15,0.4);border-radius:20px;padding:4px;backdrop-filter:blur(8px);display:flex;gap:2px;">
+    <a href="/survey" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Survey</a>
+    <a href="/" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Sensing</a>
+    <a href="/mirror" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Mirror</a>
+    <a href="/game1" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Game 1</a>
+    <a href="/game2" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Game 2</a>
+    <a href="/game3" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Game 3</a>
+    <a href="#" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#d8d0e8;padding:6px 12px;border:1px solid rgba(120,90,200,0.15);border-radius:6px;background:rgba(255,255,255,0.03);">Game 4</a>
+  </nav>
+
+  <!-- shared camera + overlay layer (lives across active screen) -->
+  <video ref="{{ videoRef }}" playsinline="" autoplay="" muted="" style="display:none;"></video>
+
+  <!-- ============ SETUP ============ -->
+  <div style="position:fixed;inset:0;z-index:10;flex-direction:column;align-items:center;justify-content:flex-start;padding:88px 24px 40px;text-align:center;font-family:Georgia,serif;overflow-y:auto;display:none;display:{{ setupDisp }};">
+    <div style="font-size:30px;letter-spacing:6px;text-transform:uppercase;color:rgba(240,232,250,0.92);margin-bottom:8px;text-shadow:0 2px 12px rgba(0,0,0,0.6);">tap the tide</div>
+    <div style="font-size:14px;font-style:italic;color:rgba(220,210,240,0.72);margin-bottom:34px;max-width:600px;line-height:1.55;">tap through six points while you speak the feeling aloud. it doesn't need to leave all at once — just let it move.</div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:34px;padding:22px 40px;border-radius:14px;background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.25);backdrop-filter:blur(8px);">
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,190,220,0.55);">carried from your survey</div>
+      <div style="font-size:15px;color:rgba(216,208,232,0.7);font-style:italic;">you're working with</div>
+      <div style="font-size:34px;font-style:italic;color:#c9b6ff;text-transform:lowercase;">{{ emotion }}</div>
+    </div>
+
+    <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,190,220,0.5);margin-bottom:16px;">the sequence</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:760px;margin-bottom:12px;font-family:'Helvetica Neue',sans-serif;">
+      <span style="padding:8px 14px;border-radius:20px;background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.28);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.8);">1 · Top of Head</span>
+      <span style="padding:8px 14px;border-radius:20px;background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.28);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.8);">2 · Eyebrow</span>
+      <span style="padding:8px 14px;border-radius:20px;background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.28);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.8);">3 · Under Eye</span>
+      <span style="padding:8px 14px;border-radius:20px;background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.28);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.8);">4 · Chin</span>
+      <span style="padding:8px 14px;border-radius:20px;background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.28);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.8);">5 · Collarbone</span>
+      <span style="padding:8px 14px;border-radius:20px;background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.28);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.8);">6 · Under Arm</span>
+    </div>
+    <div style="display:flex;gap:44px;justify-content:center;flex-wrap:wrap;margin:26px 0 34px;font-family:'Helvetica Neue',sans-serif;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,190,220,0.5);">cycles</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onClick="{{ pickCycles }}" data-cy="1" style="width:44px;height:44px;border-radius:10px;background:rgba(7,8,15,0.55);border:1px solid {{ cy1Border }};box-shadow:{{ cy1Shadow }};color:#d8d0e8;font-family:Georgia,serif;font-size:16px;cursor:pointer;">1</button>
+          <button onClick="{{ pickCycles }}" data-cy="3" style="width:44px;height:44px;border-radius:10px;background:rgba(7,8,15,0.55);border:1px solid {{ cy3Border }};box-shadow:{{ cy3Shadow }};color:#d8d0e8;font-family:Georgia,serif;font-size:16px;cursor:pointer;">3</button>
+          <button onClick="{{ pickCycles }}" data-cy="5" style="width:44px;height:44px;border-radius:10px;background:rgba(7,8,15,0.55);border:1px solid {{ cy5Border }};box-shadow:{{ cy5Shadow }};color:#d8d0e8;font-family:Georgia,serif;font-size:16px;cursor:pointer;">5</button>
+          <input type="number" min="1" max="9" step="1" placeholder="—" value="{{ cyclesCustomVal }}" onInput="{{ setCyclesCustom }}" style="width:64px;height:44px;text-align:center;border-radius:10px;background:rgba(7,8,15,0.55);border:1px solid {{ cyCustomBorder }};box-shadow:{{ cyCustomShadow }};color:#d8d0e8;font-family:Georgia,serif;font-size:16px;outline:none;">
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,190,220,0.5);">seconds at each point</div>
+        <div style="display:flex;align-items:center;height:44px;">
+          <input type="number" min="4" max="30" step="1" value="{{ sppVal }}" onInput="{{ setSpp }}" style="width:96px;height:44px;text-align:center;border-radius:10px;background:rgba(7,8,15,0.55);border:1px solid #9878e8;box-shadow:inset 0 0 0 1px rgba(152,120,232,0.4);color:#d8d0e8;font-family:Georgia,serif;font-size:18px;outline:none;accent-color:#9878e8;">
+        </div>
+      </div>
+    </div>
+
+    <div style="font-family:'Helvetica Neue',sans-serif;font-size:11px;letter-spacing:2px;color:rgba(200,190,220,0.45);margin-bottom:26px;">{{ flowLabel }}</div>
+
+    <button onClick="{{ begin }}" style="padding:14px 44px;background:rgba(120,90,200,0.30);border:1px solid #9878e8;border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;font-size:13px;letter-spacing:5px;text-transform:uppercase;cursor:pointer;backdrop-filter:blur(8px);">begin</button>
+    <div style="font-family:'Helvetica Neue',sans-serif;font-size:10px;letter-spacing:2px;color:rgba(200,190,220,0.4);margin-top:16px;">your camera turns on so the points can find you · nothing is recorded</div>
+  </div>
+
+  <!-- ============ COUNTDOWN ============ -->
+  <div style="position:fixed;inset:0;z-index:10;align-items:center;justify-content:center;font-family:Georgia,serif;display:none;display:{{ cdDisp }};">
+    <div style="font-size:96px;letter-spacing:6px;color:rgba(240,232,250,0.92);font-variant-numeric:tabular-nums;text-shadow:0 0 40px rgba(120,90,200,0.6),0 2px 20px rgba(0,0,0,0.7);animation:g4-pulse 1s ease-in-out infinite;">{{ countNum }}</div>
+  </div>
+
+  <!-- ============ ACTIVE ============ -->
+  <div style="position:fixed;inset:0;z-index:10;flex-direction:column;align-items:center;justify-content:center;padding:74px 20px 24px;font-family:Georgia,serif;display:none;display:{{ activeDisp }};">
+
+    <div style="position:relative;width:min(760px,92vw);aspect-ratio:4/3;max-height:52vh;border-radius:16px;overflow:hidden;background:#0a0812;border:1px solid rgba(120,90,200,0.28);box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+      <video ref="{{ feedRef }}" playsinline="" autoplay="" muted="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+
+      <!-- camera-off placeholder -->
+      <div style="position:absolute;inset:0;display:{{ placeholderDisp }};flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 38%, rgba(120,90,200,0.14), #0a0812);text-align:center;">
+        <div style="width:110px;height:110px;border-radius:50%;background:rgba(152,120,232,0.12);border:1px solid rgba(152,120,232,0.3);margin-bottom:16px;animation:g4-breathe 3s ease-in-out infinite;"></div>
+        <div style="font-family:'Helvetica Neue',sans-serif;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(216,208,232,0.55);">enable your camera to see yourself</div>
+        <div style="font-family:'Helvetica Neue',sans-serif;font-size:11px;color:rgba(200,190,220,0.4);margin-top:6px;">the guide points are shown below as a preview</div>
+      </div>
+
+      <!-- landmark overlay -->
+      <div ref="{{ overlayRef }}" style="position:absolute;inset:0;pointer-events:none;">
+        <div data-pt="crown" style="position:absolute;left:50%;top:13%;transform:translate(-50%,-50%);">
+          <div data-role="radar" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="radar2" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="core" style="width:11px;height:11px;border-radius:50%;background:rgba(216,208,232,0.55);border:1px solid rgba(152,120,232,0.6);transform:translate(-50%,-50%);"></div>
+          
+        </div>
+        <div data-pt="brow" style="position:absolute;left:44.5%;top:28%;transform:translate(-50%,-50%);">
+          <div data-role="radar" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="radar2" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="core" style="width:11px;height:11px;border-radius:50%;background:rgba(216,208,232,0.55);border:1px solid rgba(152,120,232,0.6);transform:translate(-50%,-50%);"></div>
+          
+        </div>
+        <div data-pt="eye" style="position:absolute;left:44.5%;top:35%;transform:translate(-50%,-50%);">
+          <div data-role="radar" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="radar2" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="core" style="width:11px;height:11px;border-radius:50%;background:rgba(216,208,232,0.55);border:1px solid rgba(152,120,232,0.6);transform:translate(-50%,-50%);"></div>
+          
+        </div>
+        <div data-pt="chin" style="position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);">
+          <div data-role="radar" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="radar2" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="core" style="width:11px;height:11px;border-radius:50%;background:rgba(216,208,232,0.55);border:1px solid rgba(152,120,232,0.6);transform:translate(-50%,-50%);"></div>
+          
+        </div>
+        <div data-pt="collar" style="position:absolute;left:44%;top:66%;transform:translate(-50%,-50%);">
+          <div data-role="radar" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="radar2" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="core" style="width:11px;height:11px;border-radius:50%;background:rgba(216,208,232,0.55);border:1px solid rgba(152,120,232,0.6);transform:translate(-50%,-50%);"></div>
+          
+        </div>
+        <div data-pt="arm" style="position:absolute;left:36%;top:78%;transform:translate(-50%,-50%);">
+          <div data-role="radar" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="radar2" style="position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(152,120,232,0.7);opacity:0;"></div>
+          <div data-role="core" style="width:11px;height:11px;border-radius:50%;background:rgba(216,208,232,0.55);border:1px solid rgba(152,120,232,0.6);transform:translate(-50%,-50%);"></div>
+          
+        </div>
+      </div>
+
+      <!-- cycle badge -->
+      <div style="position:absolute;top:14px;left:16px;font-family:'Helvetica Neue',sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(216,208,232,0.75);background:rgba(7,8,15,0.5);border:1px solid rgba(120,90,200,0.3);border-radius:14px;padding:6px 12px;backdrop-filter:blur(6px);">{{ cycleText }}</div>
+
+      <!-- timer ring -->
+      <div ref="{{ ringRef }}" style="position:absolute;top:14px;right:16px;width:66px;height:66px;border-radius:50%;background:conic-gradient(#9878e8 360deg, rgba(120,90,200,0.15) 0deg);display:flex;align-items:center;justify-content:center;">
+        <div style="width:54px;height:54px;border-radius:50%;background:rgba(10,8,18,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Helvetica Neue',sans-serif;">
+          <div ref="{{ secRef }}" style="font-size:20px;color:rgba(240,232,250,0.92);font-variant-numeric:tabular-nums;line-height:1;">11</div>
+          <div style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:rgba(200,190,220,0.5);margin-top:2px;">sec</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- guidance below the feed -->
+    <div style="text-align:center;margin-top:22px;max-width:720px;">
+      <div style="font-family:'Helvetica Neue',sans-serif;font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,190,220,0.5);margin-bottom:6px;">{{ pointCounter }} · tap gently, steadily</div>
+      <div style="font-size:26px;letter-spacing:2px;color:rgba(240,232,250,0.94);margin-bottom:4px;">{{ pointName }}</div>
+      <div style="font-size:13px;font-style:italic;color:rgba(200,190,220,0.6);margin-bottom:20px;">{{ pointNote }}</div>
+
+      <div style="font-size:clamp(20px,3.4vw,30px);color:rgba(240,232,250,0.9);line-height:1.4;text-shadow:0 2px 16px rgba(0,0,0,0.6);">“I am feeling <span style="font-style:italic;color:#c9b6ff;">{{ emotion }}</span>, and I accept it.”</div>
+
+      <div style="display:{{ voiceDisp }};align-items:center;justify-content:center;gap:9px;margin-top:14px;font-family:'Helvetica Neue',sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(200,190,220,0.55);">
+        <span style="width:8px;height:8px;border-radius:50%;background:#9878e8;animation:g4-voice 2.2s ease-in-out infinite;"></span>
+        say it aloud
+      </div>
+    </div>
+
+    <!-- overall progress -->
+    <div style="position:absolute;bottom:26px;left:50%;transform:translateX(-50%);width:min(720px,80vw);height:2px;background:rgba(200,190,220,0.15);border-radius:1px;overflow:hidden;">
+      <div ref="{{ progRef }}" style="height:100%;background:linear-gradient(90deg,rgba(120,90,200,0.5),rgba(201,182,255,0.85));width:0%;transition:width .3s linear;"></div>
+    </div>
+
+    <!-- demo controls -->
+    <div style="position:absolute;bottom:16px;left:18px;pointer-events:auto;background:rgba(7,8,15,0.5);border:1px dashed rgba(120,90,200,0.35);border-radius:10px;padding:8px 12px;font-family:'Helvetica Neue',sans-serif;display:flex;align-items:center;gap:14px;">
+      <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.4);">demo</span>
+      <button onClick="{{ skipPoint }}" style="background:transparent;border:none;color:rgba(216,208,232,0.6);font-size:10px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">next point ▸</button>
+      <button onClick="{{ skipEnd }}" style="background:transparent;border:none;color:rgba(216,208,232,0.45);font-size:10px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">skip to end ▸▸</button>
+    </div>
+  </div>
+
+  <!-- ============ COMPLETE ============ -->
+  <div style="position:fixed;inset:0;z-index:10;align-items:center;justify-content:center;padding:24px;font-family:Georgia,serif;display:none;display:{{ completeDisp }};">
+    <div style="background:rgba(7,8,15,0.55);backdrop-filter:blur(12px);border:1px solid rgba(120,90,200,0.25);border-radius:12px;padding:40px 44px;text-align:center;max-width:560px;animation:g4-fade .6s ease both;">
+      <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(200,190,220,0.55);margin-bottom:8px;">tap the tide</div>
+      <div style="font-size:22px;font-style:italic;color:rgba(240,232,250,0.9);margin-bottom:6px;">{{ completeHeadline }}</div>
+      
+      <div style="font-size:15px;font-style:italic;color:rgba(216,208,232,0.78);line-height:1.65;margin-bottom:28px;">notice the feeling now — is it the same size it was, or has the tide pulled back a little?</div>
+      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+        <button onClick="{{ again }}" style="padding:14px 34px;background:rgba(120,90,200,0.30);border:1px solid #9878e8;border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;font-size:12px;letter-spacing:4px;text-transform:uppercase;cursor:pointer;">again</button>
+        <a href="/survey" style="padding:14px 34px;background:rgba(7,8,15,0.6);border:1px solid rgba(120,90,200,0.4);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;font-size:12px;letter-spacing:4px;text-transform:uppercase;">with grandmaster oshi</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;emotion&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;anxious&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Session&quot;,&quot;label&quot;:&quot;Feeling (from survey)&quot;},&quot;secondsPerPoint&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:11,&quot;min&quot;:6,&quot;max&quot;:20,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Timing&quot;,&quot;label&quot;:&quot;Seconds per point&quot;},&quot;cycles&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;min&quot;:1,&quot;max&quot;:5,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Timing&quot;,&quot;label&quot;:&quot;Cycles&quot;},&quot;voicePrompt&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Session&quot;,&quot;label&quot;:&quot;Show \u201csay it aloud\u201d cue&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'setup',
+    countNum: 3,
+    pointIdx: 0,
+    cycle: 0,
+    camReady: false,
+    camError: false,
+    cyclesSel: 3,       // 1 | 3 | 5 | 'custom'
+    cyclesCustom: '',
+    spp: 11,
+  };
+
+  POINTS = [
+    { key:'crown',  name:'Top of Head', note:'tap the crown with two fingers' },
+    { key:'brow',   name:'Eyebrow',     note:'the inner edge of the brow' },
+    { key:'eye',    name:'Under Eye',   note:'on the bone just beneath the eye' },
+    { key:'chin',   name:'Chin',        note:'in the crease between lip and chin' },
+    { key:'collar', name:'Collarbone',  note:'just below the collarbone notch' },
+    { key:'arm',    name:'Under Arm',   note:'about a hand-width below the armpit' },
+  ];
+
+  // fixed fallback positions (mirrored display space, 0..1) used until MediaPipe pins them
+  DEFAULT_PTS = {
+    crown:{x:0.50,y:0.13}, brow:{x:0.445,y:0.28}, eye:{x:0.445,y:0.35},
+    chin:{x:0.50,y:0.48}, collar:{x:0.44,y:0.66}, arm:{x:0.36,y:0.78},
+  };
+
+  componentDidMount() {
+    // seed setup controls from props (props act as defaults; setup UI overrides)
+    const pc = this.props.cycles ?? 3;
+    this.setState({ spp: this.props.secondsPerPoint ?? 11, cyclesSel: (pc === 1 || pc === 3 || pc === 5) ? pc : 'custom', cyclesCustom: (pc === 1 || pc === 3 || pc === 5) ? '' : String(pc) });
+    this._spp = this.props.secondsPerPoint ?? 11;
+    this._cycles = pc;
+    this._pts = JSON.parse(JSON.stringify(this.DEFAULT_PTS));
+    this._tgt = JSON.parse(JSON.stringify(this.DEFAULT_PTS));
+    this._last = performance.now();
+    this._pi = 0; this._cy = 0; this._pe = 0; this._elapsed = 0;
+    this._appliedIdx = -1;
+    this._raf = requestAnimationFrame(this._loop);
+  }
+  componentWillUnmount() {
+    cancelAnimationFrame(this._raf);
+    if (this._cd) clearInterval(this._cd);
+    if (this._cvTimer) clearInterval(this._cvTimer);
+    if (this._stream) this._stream.getTracks().forEach(t => t.stop());
+  }
+
+  videoRef = () => {};
+  feedRef = (el) => { if (el) this._video = el; };
+  overlayRef = (el) => { if (el) this._overlay = el; };
+  ringRef = (el) => { this._ring = el; };
+  secRef = (el) => { this._sec = el; };
+  progRef = (el) => { this._prog = el; };
+
+  _resolvedCycles() {
+    const s = this.state;
+    if (s.cyclesSel === 'custom') { const n = parseInt(s.cyclesCustom, 10); return (n >= 1 && n <= 9) ? n : 3; }
+    return s.cyclesSel;
+  }
+  _resolvedSpp() { const n = parseInt(this.state.spp, 10); return (n >= 4 && n <= 30) ? n : 11; }
+  _fmtTotal(sec) { const m = Math.round(sec / 60); return m <= 1 ? '1 min' : m + ' min'; }
+  _words(n) { return ['zero','one','two','three','four','five','six','seven','eight','nine'][n] || String(n); }
+
+  pickCycles = (e) => this.setState({ cyclesSel: parseInt(e.currentTarget.dataset.cy, 10), cyclesCustom: '' });
+  setCyclesCustom = (e) => this.setState({ cyclesSel: 'custom', cyclesCustom: e.target.value });
+  setSpp = (e) => this.setState({ spp: e.target.value });
+
+  begin = () => {
+    this._cycles = this._resolvedCycles();
+    this._spp = this._resolvedSpp();
+    this._startCV();
+    let n = 3;
+    this.setState({ screen: 'countdown', countNum: n });
+    this._cd = setInterval(() => {
+      n -= 1;
+      if (n <= 0) { clearInterval(this._cd); this._cd = null; this._startActive(); }
+      else this.setState({ countNum: n });
+    }, 1000);
+  };
+
+  _startActive = () => {
+    this._pi = 0; this._cy = 0; this._pe = 0; this._elapsed = 0; this._appliedIdx = -1;
+    this.setState({ screen: 'active', pointIdx: 0, cycle: 0 });
+  };
+
+  again = () => this.setState({ screen: 'setup' });
+  skipPoint = () => { if (this.state.screen === 'active') { this._pe = 0; this._advance(); } };
+  skipEnd = () => { if (this.state.screen === 'active') this._finish(); };
+  _finish = () => this.setState({ screen: 'complete' });
+
+  _advance = () => {
+    this._pi += 1;
+    if (this._pi >= this.POINTS.length) {
+      this._pi = 0; this._cy += 1;
+      if (this._cy >= this._cycles) { this._finish(); return; }
+    }
+    this.setState({ pointIdx: this._pi, cycle: this._cy });
+  };
+
+  // ---------- camera + MediaPipe ----------
+  async _startCV() {
+    if (this._cvStarted) return; this._cvStarted = true;
+    try {
+      this._stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      if (this._video) { this._video.srcObject = this._stream; await this._video.play().catch(()=>{}); }
+      this.setState({ camReady: true, camError: false });
+    } catch (e) {
+      this.setState({ camError: true }); return;
+    }
+    try {
+      if (typeof FaceMesh !== 'undefined') {
+        this._fm = new FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}` });
+        this._fm.setOptions({ maxNumFaces:1, refineLandmarks:false, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+        this._fm.onResults(r => this._onFace(r));
+      }
+      if (typeof Pose !== 'undefined') {
+        this._pose = new Pose({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}` });
+        this._pose.setOptions({ modelComplexity:0, smoothLandmarks:true, enableSegmentation:false, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+        this._pose.onResults(r => this._onPose(r));
+      }
+      this._cvTimer = setInterval(() => {
+        const v = this._video;
+        if (!v || v.readyState < 2) return;
+        if (this._fm) this._fm.send({ image: v }).catch(()=>{});
+        if (this._pose) this._pose.send({ image: v }).catch(()=>{});
+      }, 130);
+    } catch (e) { /* tracking optional — fixed points remain */ }
+  }
+
+  _mx(x) { return 1 - x; }  // mirror to match scaleX(-1) feed
+
+  _onFace(r) {
+    const lm = r.multiFaceLandmarks && r.multiFaceLandmarks[0];
+    if (!lm) return;
+    const top = lm[10], chin = lm[152], brow = lm[105], eye = lm[145];
+    if (!top || !chin) return;
+    const faceH = chin.y - top.y;
+    this._tgt.crown = { x: this._mx(top.x), y: top.y - 0.45 * faceH };
+    if (brow) this._tgt.brow = { x: this._mx(brow.x), y: brow.y };
+    if (eye)  this._tgt.eye  = { x: this._mx(eye.x),  y: eye.y };
+    this._tgt.chin = { x: this._mx(chin.x), y: chin.y };
+  }
+  _onPose(r) {
+    const lm = r.poseLandmarks; if (!lm) return;
+    const ls = lm[11], rs = lm[12], lh = lm[23];
+    if (!ls || !rs) return;
+    const cx = (ls.x + rs.x) / 2, cy = (ls.y + rs.y) / 2;
+    this._tgt.collar = { x: this._mx(cx + 0.45 * (ls.x - cx)), y: cy + 0.02 };
+    const armY = lh ? cy + 0.30 * (lh.y - cy) : cy + 0.14;
+    this._tgt.arm = { x: this._mx(ls.x + 0.10 * (ls.x - rs.x)), y: armY };
+  }
+
+  // ---------- loop ----------
+  _loop = (now) => {
+    const dt = Math.min(0.05, (now - this._last) / 1000); this._last = now;
+    // smooth positions toward targets
+    for (const k in this._pts) {
+      const p = this._pts[k], t = this._tgt[k];
+      p.x += (t.x - p.x) * Math.min(1, dt * 6);
+      p.y += (t.y - p.y) * Math.min(1, dt * 6);
+    }
+    this._positionMarkers();
+
+    if (this.state.screen === 'active') {
+      this._pe += dt; this._elapsed += dt;
+      if (this._pe >= this._spp) { this._pe -= this._spp; this._advance(); }
+      this._applyActive();
+      // timer ring + seconds
+      if (this._ring) {
+        const deg = (1 - this._pe / this._spp) * 360;
+        this._ring.style.background = `conic-gradient(#9878e8 ${deg.toFixed(1)}deg, rgba(120,90,200,0.15) ${deg.toFixed(1)}deg)`;
+      }
+      if (this._sec) this._sec.textContent = String(Math.max(1, Math.ceil(this._spp - this._pe)));
+      if (this._prog) {
+        const total = this.POINTS.length * this._cycles;
+        const done = (this._cy * this.POINTS.length + this._pi + this._pe / this._spp) / total;
+        this._prog.style.width = (Math.min(1, done) * 100).toFixed(2) + '%';
+      }
+    }
+    this._raf = requestAnimationFrame(this._loop);
+  };
+
+  _positionMarkers() {
+    if (!this._overlay) return;
+    if (!this._markers) this._markers = Array.from(this._overlay.querySelectorAll('[data-pt]'));
+    for (const el of this._markers) {
+      const p = this._pts[el.dataset.pt]; if (!p) continue;
+      el.style.left = (p.x * 100).toFixed(2) + '%';
+      el.style.top  = (p.y * 100).toFixed(2) + '%';
+    }
+  }
+
+  _applyActive() {
+    if (this._appliedIdx === this._pi || !this._markers) { this._appliedIdx = this._pi; return; }
+    this._appliedIdx = this._pi;
+    const activeKey = this.POINTS[this._pi].key;
+    for (const el of this._markers) {
+      const active = el.dataset.pt === activeKey;
+      const core = el.querySelector('[data-role=core]');
+      const r1 = el.querySelector('[data-role=radar]');
+      const r2 = el.querySelector('[data-role=radar2]');
+      const label = el.querySelector('[data-role=label]');
+      el.style.zIndex = active ? '5' : '1';
+      if (active) {
+        if (core) {
+          core.style.width = '20px'; core.style.height = '20px';
+          core.style.background = 'radial-gradient(circle, #f2ecff, #9878e8)';
+          core.style.border = '1px solid rgba(216,208,232,0.9)';
+          core.style.boxShadow = '0 0 18px rgba(152,120,232,0.9)';
+          core.style.animation = 'g4-tap .7s ease-in-out infinite';
+        }
+        if (r1) r1.style.animation = 'g4-radar 1.6s ease-out infinite';
+        if (r2) { r2.style.animation = 'g4-radar 1.6s ease-out infinite'; r2.style.animationDelay = '.8s'; }
+        if (label) label.style.opacity = '1';
+      } else {
+        if (core) {
+          core.style.width = '11px'; core.style.height = '11px';
+          core.style.background = 'rgba(216,208,232,0.5)';
+          core.style.border = '1px solid rgba(152,120,232,0.55)';
+          core.style.boxShadow = 'none'; core.style.animation = 'none';
+        }
+        if (r1) { r1.style.animation = 'none'; r1.style.opacity = '0'; }
+        if (r2) { r2.style.animation = 'none'; r2.style.opacity = '0'; }
+        if (label) label.style.opacity = '0';
+      }
+    }
+  }
+
+  renderVals() {
+    const s = this.state;
+    const pt = this.POINTS[s.pointIdx] || this.POINTS[0];
+    const emotion = (this.props.emotion ?? 'anxious').toString().toLowerCase();
+    const cycles = this._resolvedCycles();
+    const spp = this._resolvedSpp();
+    const camOff = !s.camReady || s.camError;
+    const bd = on => on ? '#9878e8' : 'rgba(120,90,200,0.35)';
+    const sh = on => on ? 'inset 0 0 0 1px #9878e8, 0 0 16px rgba(152,120,232,0.4)' : 'none';
+    return {
+      videoRef: this.videoRef, feedRef: this.feedRef, overlayRef: this.overlayRef,
+      ringRef: this.ringRef, secRef: this.secRef, progRef: this.progRef,
+      begin: this.begin, again: this.again, skipPoint: this.skipPoint, skipEnd: this.skipEnd,
+      pickCycles: this.pickCycles, setCyclesCustom: this.setCyclesCustom, setSpp: this.setSpp,
+      cy1Border: bd(s.cyclesSel === 1), cy1Shadow: sh(s.cyclesSel === 1),
+      cy3Border: bd(s.cyclesSel === 3), cy3Shadow: sh(s.cyclesSel === 3),
+      cy5Border: bd(s.cyclesSel === 5), cy5Shadow: sh(s.cyclesSel === 5),
+      cyCustomBorder: bd(s.cyclesSel === 'custom'), cyCustomShadow: sh(s.cyclesSel === 'custom'),
+      cyclesCustomVal: s.cyclesCustom, sppVal: s.spp,
+      flowLabel: cycles + (cycles === 1 ? ' cycle' : ' cycles') + ' · ' + spp + 's at each point · about ' + this._fmtTotal(cycles * this.POINTS.length * spp),
+      setupDisp: s.screen === 'setup' ? 'flex' : 'none',
+      cdDisp: s.screen === 'countdown' ? 'flex' : 'none',
+      activeDisp: s.screen === 'active' ? 'flex' : 'none',
+      completeDisp: s.screen === 'complete' ? 'flex' : 'none',
+      countNum: s.countNum,
+      emotion,
+      completeHeadline: (cycles === 1 ? 'one round' : this._words(cycles) + ' rounds') + ', all the way through',
+      cycleText: 'Cycle ' + (s.cycle + 1) + ' of ' + cycles,
+      pointCounter: 'Point ' + (s.pointIdx + 1) + ' of ' + this.POINTS.length,
+      pointName: pt.name,
+      pointNote: pt.note,
+      placeholderDisp: camOff ? 'flex' : 'none',
+      voiceDisp: (this.props.voicePrompt ?? true) ? 'flex' : 'none',
+    };
+  }
+}
+</script>
+</body>
+</html>

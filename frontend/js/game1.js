@@ -1308,6 +1308,11 @@ const GameApp = (() => {
       phoenix.triggerEmerge();
       const btn = document.getElementById('session-btn');
       if (btn && _sessionLog.length > 0) btn.style.display = 'inline-block';
+      // Retrospective hand-off (Survey § POST_SESSION).  Shown even
+      // when the user didn't come from /survey — /survey handles the
+      // "fresh start" case gracefully.
+      const oshiBtn = document.getElementById('oshi-btn');
+      if (oshiBtn) oshiBtn.style.display = 'inline-block';
     }
 
     _renderProgressUI();
@@ -1374,6 +1379,8 @@ const GameApp = (() => {
     _sessionStartMs   = null;
     const sBtn = document.getElementById('session-btn');
     if (sBtn) sBtn.style.display = 'none';
+    const oshiBtn = document.getElementById('oshi-btn');
+    if (oshiBtn) oshiBtn.style.display = 'none';
     _closeSessionModal();
     // If we're already calibrated + tracking, jump straight to ACTIVE.
     // Otherwise sit at IDLE until both gates clear.

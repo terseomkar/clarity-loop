@@ -419,6 +419,7 @@ body {
   gap: 14px;
 }
 .post-session-btn {
+  display: inline-block;
   background: rgba(7, 8, 15, 0.6);
   border: 1px solid rgba(120, 90, 200, 0.4);
   border-radius: 8px;
@@ -428,6 +429,7 @@ body {
   font-size: 11px;
   letter-spacing: 3px;
   text-transform: uppercase;
+  text-decoration: none;    /* anchor variant (oshi-btn) needs this */
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: background 0.2s, transform 0.2s, border-color 0.2s;
@@ -818,6 +820,7 @@ body {
   line-height: 1.4;
 }
 .game2-begin-btn {
+  display: inline-block;
   margin-top: 12px;
   padding: 14px 44px;
   background: rgba(120, 90, 200, 0.30);
@@ -828,10 +831,20 @@ body {
   font-size: 13px;
   letter-spacing: 5px;
   text-transform: uppercase;
+  text-decoration: none;    /* anchor variant (reveal-oshi-btn) needs this */
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: background 0.2s, transform 0.2s;
 }
+/* Row layout when reveal shows both "again" + retrospective hand-off */
+.game2-reveal-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.game2-reveal-actions .game2-begin-btn { margin-top: 0; }
 .game2-begin-btn:hover:not(:disabled) {
   background: rgba(120, 90, 200, 0.45);
   transform: translateY(-2px);
@@ -877,8 +890,29 @@ body {
   transition: width 0.1s linear;
 }
 
-/* Eyes-closed mode: hide the timebar entirely — no visual cues */
-body.game2-mode-eyes-closed .game2-timebar { display: none; }
+/* Guidance prompt — alternating fade-in phrases during the live session.
+   Sits just above the time bar at the bottom; a slow opacity transition
+   gives the calm fade in / fade out. */
+.game2-prompt {
+  position: absolute;
+  bottom: 64px;   /* time bar sits 40px from the bottom — clear it */
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, 82vw);
+  text-align: center;
+  font-family: Georgia, serif;
+  font-size: clamp(1.05rem, 2.4vw, 1.55rem);
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  color: rgba(240, 232, 250, 0.92);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.65);
+  opacity: 0;
+  transition: opacity 1.6s ease-in-out;
+  pointer-events: none;   /* never intercepts taps */
+}
+.game2-prompt.visible { opacity: 1; }
 
 /* Tap ripple — small expanding circle at click position */
 .game2-ripple {
@@ -949,4 +983,1075 @@ body.game2-mode-eyes-closed .game2-timebar { display: none; }
   color: rgba(200, 190, 220, 0.75);
   letter-spacing: 0.4px;
   line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   OSHI SURVEY & RETROSPECTIVE  (/survey)
+   Ported from Oshi Survey & Retrospective.dc.html — keyframes, layout,
+   chips, ring, cards, and portrait.  Reuses --bg/--text/--accent tokens
+   from :root so the forest palette stays consistent with the rest of
+   the app.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* --- Keyframes (verbatim from prototype) --------------------------- */
+@keyframes oshi-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes oshi-fade {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes oshi-breathe {
+  0%,100% { transform: scale(1);    opacity: 0.85; }
+  50%     { transform: scale(1.09); opacity: 1;    }
+}
+@keyframes oshi-glow-pulse {
+  0%,100% { box-shadow: 0 0 22px rgba(152,120,232,0.28), inset 0 0 30px rgba(152,120,232,0.06); }
+  50%     { box-shadow: 0 0 40px rgba(152,120,232,0.45), inset 0 0 40px rgba(152,120,232,0.12); }
+}
+@keyframes oshi-drift {
+  0%   { transform: translateY(0)     rotate(0deg);  opacity: 0;   }
+  15%  { opacity: 0.7; }
+  85%  { opacity: 0.5; }
+  100% { transform: translateY(-70px) rotate(12deg); opacity: 0;   }
+}
+@keyframes oshi-caret {
+  0%,100% { opacity: 0; } 50% { opacity: 1; }
+}
+
+/* --- Stage background --------------------------------------------- */
+.oshi-body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 90vw 70vh at 50% 12%, rgba(120,90,200,0.10), transparent 62%),
+    radial-gradient(ellipse 60vw 50vh at 78% 88%, rgba(90,150,110,0.07), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Ambient drifting embers (4).  Colors match the prototype's four span
+   backgrounds; pointer-events:none so they can never eat clicks. */
+.oshi-embers { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.oshi-ember { position: absolute; border-radius: 50%; }
+.oshi-ember-1 { left:14%; top:70%; width:4px; height:4px;
+  background: rgba(240,190,120,0.7); box-shadow: 0 0 8px rgba(240,190,120,0.8);
+  animation: oshi-drift 9s ease-in-out infinite; }
+.oshi-ember-2 { left:26%; top:82%; width:3px; height:3px;
+  background: rgba(152,120,232,0.7); box-shadow: 0 0 8px rgba(152,120,232,0.8);
+  animation: oshi-drift 11s ease-in-out 2s infinite; }
+.oshi-ember-3 { left:70%; top:78%; width:3px; height:3px;
+  background: rgba(240,190,120,0.6); box-shadow: 0 0 7px rgba(240,190,120,0.7);
+  animation: oshi-drift 12s ease-in-out 4s infinite; }
+.oshi-ember-4 { left:83%; top:66%; width:4px; height:4px;
+  background: rgba(140,200,150,0.6); box-shadow: 0 0 8px rgba(140,200,150,0.7);
+  animation: oshi-drift 10s ease-in-out 1s infinite; }
+
+.oshi-vignette {
+  position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  background: radial-gradient(ellipse at center, transparent 46%, rgba(4,3,8,0.55) 100%);
+}
+
+/* --- Progress dots (survey steps only) ---------------------------- */
+.oshi-progress {
+  position: fixed; top: 58px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex; gap: 2px; align-items: center;
+}
+.oshi-progress-wrap {
+  display: inline-flex; align-items: center;
+  padding: 9px 5px;
+  cursor: default;
+}
+.oshi-progress-wrap.clickable { cursor: pointer; }
+.oshi-progress-dot {
+  width: 8px; height: 8px; border-radius: 6px;
+  background: rgba(120,90,200,0.2);
+  transition: all 0.4s;
+}
+.oshi-progress-dot.filled  { background: rgba(152,120,232,0.85); }
+.oshi-progress-dot.current { width: 26px; background: rgba(152,120,232,0.85);
+  box-shadow: 0 0 12px rgba(152,120,232,0.6); }
+
+/* --- Center stage -------------------------------------------------- */
+.oshi-stage {
+  position: fixed; inset: 0; z-index: 12;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 48px 24px 140px;
+  box-sizing: border-box; text-align: center;
+}
+.oshi-stage-inner { width: 100%; display: flex; align-items: center; justify-content: center; }
+
+/* Only the .active screen paints.  Others sit dormant. */
+.oshi-screen { display: none; flex-direction: column; align-items: center; }
+.oshi-screen.active { display: flex; animation: oshi-fade-up 0.95s ease both; }
+
+/* --- Decorative rune circle behind the welcome title -------------- */
+/* Scoped to #scr-welcome so the shared .oshi-* atoms on other screens
+   are untouched.  Presentational only — no JS, no state. */
+#scr-welcome { position: relative; }
+#scr-welcome .rune-circle {
+  position: absolute;
+  top: 38%; left: 50%;
+  width: min(609px, 81vw);           /* square asset → height follows automatically */
+  transform: translate(-50%, -50%);  /* rotation origin = image center = ring center */
+  opacity: 0.92;
+  pointer-events: none;
+  filter: drop-shadow(0 0 24px rgba(255,180,90,0.25));
+  animation: rune-rot 90s linear infinite;
+}
+/* Text + button ride above the ring and stay clickable. */
+#scr-welcome .oshi-eyebrow,
+#scr-welcome .oshi-title,
+#scr-welcome .oshi-tagline,
+#scr-welcome .oshi-btn-enter { position: relative; }
+
+/* Keep the centering translate in BOTH keyframes — a rotate-only frame
+   overwrites the whole transform, dropping the offset, and the ring
+   snaps to 0,0 and orbits off-corner. */
+@keyframes rune-rot {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Reusable typography atoms — labels + Oshi's italic voice --------- */
+.oshi-eyebrow {
+  font-size: 11px; letter-spacing: 6px; text-transform: uppercase;
+  color: #6058a0; margin-bottom: 20px;
+}
+.oshi-eyebrow-question {
+  font-size: 10px; letter-spacing: 4px; margin-bottom: 18px;
+}
+.oshi-instruction {
+  font-size: 10px; letter-spacing: 4px; text-transform: uppercase;
+  color: #6058a0; margin-bottom: 26px;
+}
+.oshi-title {
+  font-family: Georgia, serif;
+  font-size: 46px; letter-spacing: 8px; text-transform: uppercase;
+  color: rgba(240,232,250,0.94);
+  text-shadow: 0 2px 24px rgba(0,0,0,0.7);
+}
+.oshi-title-farewell {
+  font-size: 30px; letter-spacing: 4px; text-transform: none;
+  color: rgba(240,232,250,0.92);
+}
+.oshi-tagline {
+  font-family: Georgia, serif; font-style: italic; font-size: 16px;
+  color: rgba(200,190,220,0.7); margin-top: 14px; letter-spacing: 0.4px;
+}
+
+/* Buttons ---------------------------------------------------------- */
+.oshi-btn {
+  padding: 15px 52px;
+  background: rgba(120,90,200,0.28);
+  border: 1px solid #9878e8;
+  border-radius: 9px;
+  color: #eee6fb;
+  font-family: Georgia, serif;
+  font-size: 13px; letter-spacing: 5px; text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.18s, transform 0.18s, border-color 0.18s;
+}
+.oshi-btn:hover { background: rgba(120,90,200,0.45); transform: translateY(-2px); }
+.oshi-btn-enter    { margin-top: 46px; }
+.oshi-btn-continue { margin-top: 40px; padding: 13px 42px; font-size: 12px; letter-spacing: 4px; animation: oshi-fade 0.5s ease both; }
+.oshi-btn-restart  { margin-top: 44px; padding: 13px 44px; font-size: 12px; letter-spacing: 4px;
+  background: rgba(120,90,200,0.22); border-color: rgba(120,90,200,0.5); }
+.oshi-btn-outline {
+  margin-top: 40px; padding: 13px 40px;
+  background: transparent;
+  border: 1px solid rgba(120,90,200,0.4);
+  color: rgba(216,208,232,0.8);
+  font-size: 12px; letter-spacing: 4px;
+}
+.oshi-btn-outline:hover { border-color: #9878e8; color: #eee6fb; }
+
+/* --- Ambient audio toggle (landing page) --------------------------
+   Reuses the shared .audio-toggle / .mute-btn styling from the games;
+   only the corner position differs (no sibling controls here, so it
+   sits flush in the bottom-right). */
+.oshi-body .audio-toggle { right: 20px; z-index: 40; }
+@media (max-width: 640px) {
+  .oshi-body .audio-toggle { right: 14px; bottom: 14px; }
+}
+
+/* --- Sensation chips ---------------------------------------------- */
+.oshi-chips {
+  display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+  width: min(660px, 92vw);
+}
+.oshi-chip {
+  padding: 11px 20px;
+  border-radius: 22px;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(6px);
+  background: rgba(7,8,15,0.5);
+  border: 1px solid rgba(120,90,200,0.3);
+  color: rgba(216,208,232,0.8);
+}
+.oshi-chip.active {
+  background: rgba(120,90,200,0.34);
+  border-color: #9878e8;
+  color: #f0e8fb;
+  box-shadow: 0 0 18px rgba(152,120,232,0.35);
+}
+.oshi-other-input {
+  margin-top: 20px;
+  width: min(420px, 84vw);
+  padding: 13px 18px;
+  background: rgba(7,8,15,0.6);
+  border: 1px solid rgba(120,90,200,0.4);
+  border-radius: 9px;
+  color: var(--text);
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 15px; text-align: center;
+  outline: none;
+}
+
+/* --- Intensity ring ----------------------------------------------- */
+.oshi-ring-wrap {
+  position: relative;
+  width: 340px; height: 340px;
+  max-width: 84vw; max-height: 84vw;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; touch-action: none;
+}
+.oshi-ring-track {
+  position: absolute;
+  width: 340px; height: 340px;
+  max-width: 84vw; max-height: 84vw;
+  border-radius: 50%;
+  border: 1px dashed rgba(120,90,200,0.18);
+}
+.oshi-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(152,120,232,0.35);
+  background: radial-gradient(circle, rgba(152,120,232,0.05), transparent 72%);
+  transition: width 0.18s ease, height 0.18s ease, box-shadow 0.18s ease;
+  pointer-events: none;
+}
+.oshi-ring-center {
+  position: relative; z-index: 2;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(240,232,250,0.92), rgba(152,120,232,0.15));
+  box-shadow: 0 0 16px rgba(152,120,232,0.6);
+  pointer-events: none;
+}
+
+/* --- Body ---------------------------------------------------------- */
+.oshi-body-svg { width: 200px; height: 380px; max-height: 54vh; overflow: visible; }
+.oshi-body-label {
+  height: 22px; margin-top: 10px;
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 15px; letter-spacing: 1px;
+  color: rgba(220,210,240,0.85);
+}
+
+/* --- Emotion wheel ------------------------------------------------- */
+.oshi-wheel-svg {
+  flex-shrink: 0;
+  width: 502px; height: 504px;
+  max-width: 90vw; max-height: 60vh;
+  overflow: visible;
+}
+.oshi-emotion-sel {
+  height: 22px; margin-top: 12px;
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 16px; letter-spacing: 0.5px;
+  color: rgba(230,222,246,0.9);
+}
+
+/* --- Offering cards ------------------------------------------------ */
+.oshi-cards { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.oshi-card {
+  width: 300px; padding: 26px 28px;
+  border-radius: 12px;
+  background: rgba(7,8,15,0.55);
+  border: 1px solid rgba(120,90,200,0.28);
+  backdrop-filter: blur(10px);
+  cursor: pointer; transition: all 0.2s;
+  text-align: center;
+  color: var(--text);
+  font-family: 'Helvetica Neue', sans-serif;
+}
+.oshi-card:hover  { border-color: #9878e8; transform: translateY(-3px); }
+.oshi-card.active { border-color: #9878e8; box-shadow: 0 0 26px rgba(152,120,232,0.3); }
+.oshi-card-title {
+  font-family: Georgia, serif; font-size: 16px;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(240,232,250,0.92); margin-bottom: 6px;
+}
+.oshi-card-goal {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: #9878e8; margin-bottom: 14px;
+}
+.oshi-card-desc {
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 13px; color: rgba(200,190,220,0.72);
+  line-height: 1.5;
+}
+
+/* --- Session hand-off screen -------------------------------------- */
+.oshi-orb {
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  border: 1px solid rgba(152,120,232,0.5);
+  background: radial-gradient(circle, rgba(152,120,232,0.22), transparent 70%);
+  animation: oshi-breathe 6s ease-in-out infinite, oshi-glow-pulse 6s ease-in-out infinite;
+}
+.oshi-session-title {
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 17px; color: rgba(220,210,240,0.8);
+  margin-top: 40px;
+}
+.oshi-session-hint {
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: #3a3650; margin-top: 12px;
+}
+
+/* --- Reflection --------------------------------------------------- */
+.oshi-shift {
+  display: flex; align-items: center; gap: 34px;
+  margin-bottom: 34px;
+}
+.oshi-shift-side { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.oshi-shift-ring { /* dynamic sizing set from JS */ }
+.oshi-shift-label {
+  font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+}
+.oshi-shift-label-then { color: #3a3650; }
+.oshi-shift-label-now  { color: #6058a0; }
+.oshi-shift-arrow      { color: #3a3650; font-size: 18px; }
+.oshi-contemplation {
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 24px; line-height: 1.55;
+  color: rgba(240,232,250,0.94);
+  max-width: 620px; text-wrap: pretty;
+  text-shadow: 0 2px 18px rgba(0,0,0,0.6);
+}
+.oshi-breathing-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  margin-top: 40px;
+  background: radial-gradient(circle, rgba(152,120,232,0.9), rgba(152,120,232,0.1));
+  animation: oshi-breathe 7s ease-in-out infinite;
+}
+
+/* Journal textarea on the reflection screen — free-form response to
+   the contemplation question. Not persisted; just a place to put words. */
+.oshi-journal {
+  margin-top: 28px;
+  width: min(620px, 88vw);
+  min-height: 96px;
+  padding: 14px 16px;
+  resize: vertical;
+  background: rgba(7, 8, 15, 0.5);
+  border: 1px solid rgba(120, 90, 200, 0.28);
+  border-radius: 10px;
+  color: rgba(240, 232, 250, 0.94);
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.5;
+  outline: none;
+  backdrop-filter: blur(6px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.oshi-journal::placeholder {
+  color: rgba(200, 190, 220, 0.4);
+  font-style: italic;
+}
+.oshi-journal:focus {
+  border-color: rgba(152, 120, 232, 0.7);
+  box-shadow: 0 0 0 1px rgba(152, 120, 232, 0.3);
+}
+
+/* --- Persistent Oshi portrait + caption --------------------------- */
+.oshi-corner {
+  position: fixed; left: 34px; bottom: 34px;
+  z-index: 25;
+  display: flex; align-items: flex-end;
+  gap: 20px; max-width: min(620px, 88vw);
+}
+.oshi-portrait {
+  position: relative; flex-shrink: 0;
+  width: 116px; height: 116px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(152,120,232,0.4);
+  animation: oshi-glow-pulse 7s ease-in-out infinite;
+}
+.oshi-portrait-img {
+  width: 100%; height: 100%;
+  background-size: cover; background-position: center 30%;
+  transition: background-image 0.4s;
+}
+.oshi-caption { padding-bottom: 8px; min-height: 40px; }
+.oshi-name {
+  font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+  color: #6058a0; margin-bottom: 8px;
+}
+.oshi-line-wrap {
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 17px; line-height: 1.5;
+  color: rgba(232,224,246,0.92);
+  text-wrap: pretty;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.7);
+}
+.oshi-line { white-space: pre-wrap; }
+.oshi-caret {
+  display: none;
+  margin-left: 2px;
+  color: rgba(152,120,232,0.8);
+  animation: oshi-caret 0.9s step-end infinite;
+}
+
+/* Survey nav — top-right, kept minimal ----------------------------- */
+.oshi-nav {
+  position: fixed; top: 20px; right: 24px;
+  z-index: 22;
+  gap: 14px;
+  background: transparent;
+}
+.oshi-nav .mode-link { font-size: 11px; letter-spacing: 2px; }
+
+/* Small-screen tweaks ---------------------------------------------- */
+@media (max-width: 640px) {
+  .oshi-title { font-size: 34px; letter-spacing: 5px; }
+  .oshi-corner { left: 16px; bottom: 16px; gap: 12px; }
+  .oshi-portrait { width: 84px; height: 84px; }
+  .oshi-nav { top: 10px; right: 12px; }
+  .oshi-stage { padding: 60px 16px 160px; }
+  .oshi-wheel-svg { width: min(92vw, 502px); height: auto; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   GAME 3 — Follow the Flame  (/game3)
+   Setup uses game2-* pickers/mode-cards verbatim; only the active +
+   complete screens need bespoke classes below.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Active screen — no flex layout (flame owns the viewport); the phase
+   guide + timebar sit as absolutely-positioned overlays. */
+.game3-active {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  font-family: Georgia, serif;
+}
+
+.game3-hint {
+  position: absolute;
+  top: 6vh;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 2px;
+  color: rgba(216, 208, 232, 0.32);
+}
+
+.game3-phase-guide {
+  position: absolute;
+  bottom: 62px;
+  left: 0; right: 0;
+  text-align: center;
+}
+.game3-phase-name {
+  font-size: 18px;
+  letter-spacing: 8px;
+  text-transform: uppercase;
+  color: rgba(240, 232, 250, 0.9);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.7);
+  transition: opacity 0.4s;
+}
+.game3-phase-count {
+  margin-top: 10px;
+  font-size: 20px;
+  color: rgba(220, 210, 240, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bottom progress bar — reuses .game2-timebar; this wrapper just
+   positions and horizontally centres it. */
+.game3-timebar-wrap {
+  position: absolute;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 80vw);
+}
+.game3-timebar-wrap .game2-timebar {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+/* Complete screen — session-capture card */
+.game3-complete {
+  padding: 24px;
+}
+.game3-capture-card {
+  background: rgba(7, 8, 15, 0.55);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(120, 90, 200, 0.25);
+  border-radius: 12px;
+  padding: 36px 40px;
+  text-align: center;
+  animation: g3-capture-fade 0.6s ease both;
+}
+@keyframes g3-capture-fade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.game3-capture-eyebrow {
+  font-size: 11px;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.55);
+  margin-bottom: 6px;
+}
+.game3-capture-title {
+  font-size: 16px;
+  font-style: italic;
+  color: rgba(220, 210, 240, 0.85);
+  margin-bottom: 16px;
+}
+.game3-capture-canvas {
+  display: block;
+  width: min(760px, 84vw);
+  height: 200px;
+  border-radius: 8px;
+  background: #0a0812;
+  border: 1px solid rgba(120, 90, 200, 0.2);
+}
+.game3-capture-legend {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.6);
+}
+.game3-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.game3-legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+.game3-legend-raw    { background: #ff8a3d; }
+.game3-legend-target { height: 0; border-top: 1px dashed rgba(180, 160, 220, 0.8); }
+.game3-legend-inhale { height: 10px; background: rgba(239, 123, 42, 0.10); }
+.game3-legend-hold   { height: 10px; background: rgba(120, 90, 200, 0.14); }
+
+.game3-capture-framing {
+  margin: 24px 0 4px;
+  font-size: 14px;
+  font-style: italic;
+  color: rgba(200, 190, 220, 0.7);
+  line-height: 1.6;
+}
+.game3-capture-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.game3-capture-actions .game2-begin-btn { margin-top: 0; }
+
+/* ══════════════════════════════════════════════════════════════════
+   Game 4 (Tap the Tide) — guided EFT tapping session
+   The clock leads; MediaPipe only pins the pulsing markers.  Ported
+   from the prototype; reuses game2 buttons/inputs + game3 capture card.
+   ══════════════════════════════════════════════════════════════════ */
+.g4-body { background: #050308; }
+
+/* Soft violet vignette behind every screen */
+.g4-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 90vw 70vh at 50% 40%,
+                              rgba(120, 90, 200, 0.10) 0%,
+                              rgba(5, 3, 8, 0) 62%);
+}
+
+/* Keep the mode-nav above the full-viewport screens so its links stay
+   clickable during the game (the active screen otherwise covers them). */
+.g4-body .mirror-nav { z-index: 50; }
+
+/* Screen containers */
+.g4-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  font-family: Georgia, serif;
+  color: var(--text);
+}
+.g4-setup {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 88px 24px 40px;
+  text-align: center;
+  overflow-y: auto;
+}
+.g4-countdown { align-items: center; justify-content: center; }
+.g4-active {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 74px 20px 24px;
+  text-align: center;
+}
+.g4-complete { align-items: center; justify-content: center; padding: 24px; }
+
+/* ── Setup ─────────────────────────────────────────────────────── */
+.g4-title {
+  font-size: 30px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: rgba(240, 232, 250, 0.92);
+  margin-bottom: 8px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+.g4-subtitle {
+  font-size: 14px;
+  font-style: italic;
+  color: rgba(220, 210, 240, 0.72);
+  margin-bottom: 34px;
+  max-width: 600px;
+  line-height: 1.55;
+}
+.g4-carry-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 34px;
+  padding: 22px 40px;
+  border-radius: 14px;
+  background: rgba(7, 8, 15, 0.5);
+  border: 1px solid rgba(120, 90, 200, 0.25);
+  backdrop-filter: blur(8px);
+}
+.g4-carry-label {
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.55);
+}
+.g4-carry-sub {
+  font-size: 15px;
+  color: rgba(216, 208, 232, 0.7);
+  font-style: italic;
+}
+.g4-setup-emotion {
+  font-size: 34px;
+  font-style: italic;
+  color: #c9b6ff;
+  text-transform: lowercase;
+}
+.g4-seq-label {
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.5);
+  margin-bottom: 16px;
+}
+.g4-seq-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 760px;
+  margin-bottom: 12px;
+  font-family: 'Helvetica Neue', sans-serif;
+}
+.g4-seq-chip {
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: rgba(7, 8, 15, 0.5);
+  border: 1px solid rgba(120, 90, 200, 0.28);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(216, 208, 232, 0.8);
+}
+.g4-config-row {
+  display: flex;
+  gap: 44px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 26px 0 34px;
+  font-family: 'Helvetica Neue', sans-serif;
+}
+.g4-config-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.g4-config-label {
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.5);
+}
+.g4-cycle-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 44px;
+}
+.g4-cycle-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(7, 8, 15, 0.55);
+  border: 1px solid rgba(120, 90, 200, 0.35);
+  color: var(--text);
+  font-family: Georgia, serif;
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.g4-cycle-btn:hover { border-color: var(--accent); }
+.g4-cycles-custom {
+  width: 64px;
+  height: 44px;
+  text-align: center;
+  border-radius: 10px;
+  background: rgba(7, 8, 15, 0.55);
+  border: 1px solid rgba(120, 90, 200, 0.35);
+  color: var(--text);
+  font-family: Georgia, serif;
+  font-size: 16px;
+  outline: none;
+}
+/* Selected highlight for cycle presets + custom field */
+.g4-cycle-btn.selected,
+.g4-cycles-custom.selected {
+  border-color: #9878e8;
+  box-shadow: inset 0 0 0 1px #9878e8, 0 0 16px rgba(152, 120, 232, 0.4);
+}
+.g4-spp-input {
+  width: 96px;
+  height: 44px;
+  text-align: center;
+  border-radius: 10px;
+  background: rgba(7, 8, 15, 0.55);
+  border: 1px solid #9878e8;
+  box-shadow: inset 0 0 0 1px rgba(152, 120, 232, 0.4);
+  color: var(--text);
+  font-family: Georgia, serif;
+  font-size: 18px;
+  outline: none;
+  accent-color: #9878e8;
+}
+.g4-flow-label {
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: rgba(200, 190, 220, 0.45);
+  margin-bottom: 26px;
+}
+.g4-begin-note {
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: rgba(200, 190, 220, 0.4);
+  margin-top: 16px;
+}
+
+/* ── Active — camera frame + overlay ───────────────────────────── */
+.g4-frame {
+  position: relative;
+  width: min(760px, 92vw);
+  aspect-ratio: 4 / 3;
+  max-height: 52vh;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0a0812;
+  border: 1px solid rgba(120, 90, 200, 0.28);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.g4-feed {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);   /* mirror the preview — marker x is flipped in JS */
+}
+.g4-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 38%, rgba(120, 90, 200, 0.14), #0a0812);
+  text-align: center;
+}
+.g4-placeholder-orb {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(152, 120, 232, 0.12);
+  border: 1px solid rgba(152, 120, 232, 0.3);
+  margin-bottom: 16px;
+  animation: g4-breathe 3s ease-in-out infinite;
+}
+.g4-placeholder-line {
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(216, 208, 232, 0.55);
+}
+.g4-placeholder-sub {
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  color: rgba(200, 190, 220, 0.4);
+  margin-top: 6px;
+}
+.g4-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.g4-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.g4-radar {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid rgba(152, 120, 232, 0.7);
+  opacity: 0;
+}
+.g4-core {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(216, 208, 232, 0.55);
+  border: 1px solid rgba(152, 120, 232, 0.6);
+  transform: translate(-50%, -50%);
+}
+
+/* cycle badge — top-left of the frame */
+.g4-cycle-badge {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(216, 208, 232, 0.75);
+  background: rgba(7, 8, 15, 0.5);
+  border: 1px solid rgba(120, 90, 200, 0.3);
+  border-radius: 14px;
+  padding: 6px 12px;
+  backdrop-filter: blur(6px);
+}
+
+/* timer ring — top-right of the frame; conic-gradient set per frame in JS */
+.g4-ring {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: conic-gradient(#9878e8 360deg, rgba(120, 90, 200, 0.15) 0deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.g4-ring-inner {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(10, 8, 18, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Helvetica Neue', sans-serif;
+}
+.g4-sec {
+  font-size: 20px;
+  color: rgba(240, 232, 250, 0.92);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.g4-sec-unit {
+  font-size: 7px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.5);
+  margin-top: 2px;
+}
+
+/* ── Active — guidance below the feed ──────────────────────────── */
+.g4-guide {
+  text-align: center;
+  margin-top: 22px;
+  max-width: 720px;
+}
+.g4-point-counter {
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.5);
+  margin-bottom: 6px;
+}
+.g4-point-name {
+  font-size: 26px;
+  letter-spacing: 2px;
+  color: rgba(240, 232, 250, 0.94);
+  margin-bottom: 4px;
+}
+.g4-point-note {
+  font-size: 13px;
+  font-style: italic;
+  color: rgba(200, 190, 220, 0.6);
+  margin-bottom: 20px;
+}
+.g4-affirm {
+  font-size: clamp(20px, 3.4vw, 30px);
+  color: rgba(240, 232, 250, 0.9);
+  line-height: 1.4;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6);
+}
+.g4-emotion { font-style: italic; color: #c9b6ff; }
+.g4-voice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 14px;
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(200, 190, 220, 0.55);
+}
+.g4-voice-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9878e8;
+  animation: g4-voice 2.2s ease-in-out infinite;
+}
+
+/* transport controls — pause/resume + skip to end, bottom-left */
+.g4-controls {
+  position: absolute;
+  bottom: 20px;
+  left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Helvetica Neue', sans-serif;
+}
+.g4-ctrl-btn {
+  background: rgba(7, 8, 15, 0.55);
+  border: 1px solid rgba(120, 90, 200, 0.35);
+  border-radius: 8px;
+  color: rgba(216, 208, 232, 0.75);
+  font-family: 'Helvetica Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.g4-ctrl-btn:hover {
+  background: rgba(120, 90, 200, 0.22);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* overall progress — pinned to the bottom of the active screen */
+.g4-prog-track {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 80vw);
+  height: 2px;
+  background: rgba(200, 190, 220, 0.15);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.g4-prog-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(120, 90, 200, 0.5), rgba(201, 182, 255, 0.85));
+  transition: width 0.3s linear;
+}
+
+/* ── Complete ──────────────────────────────────────────────────── */
+.g4-complete-headline {
+  font-size: 22px;
+  font-style: italic;
+  color: rgba(240, 232, 250, 0.9);
+  margin-bottom: 6px;
+}
+.g4-complete-body {
+  font-size: 15px;
+  font-style: italic;
+  color: rgba(216, 208, 232, 0.78);
+  line-height: 1.65;
+  margin-bottom: 28px;
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────── */
+@keyframes g4-radar {
+  0%   { transform: translate(-50%, -50%) scale(0.45); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(2.7);  opacity: 0;   }
+}
+@keyframes g4-tap {
+  0%, 100% { transform: scale(1);    }
+  45%      { transform: scale(0.72); }
+}
+@keyframes g4-voice {
+  0%, 100% { opacity: 0.3; transform: scale(1);   }
+  50%      { opacity: 1;   transform: scale(1.6); }
+}
+@keyframes g4-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.8;  }
 }

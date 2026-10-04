@@ -73,10 +73,13 @@ reply: {type:"hr_result", bpm, rr_bpm, posture:{slump_score,
 | 1 | Done | `backend/cv/heart_rate.py`, `frontend/js/camera.js` |
 | 2 | Done | `backend/cv/respiration.py` |
 | 3 | Posture done; state-model thresholds pending live calibration | `backend/cv/posture.py`, `backend/state/model.py` |
-| 4 | Stub | `backend/orchestrator/rules.py` |
-| 5 | Stub | `backend/orchestrator/agent.py` |
-| 6 | Stub | `backend/db/session.py`, `frontend/index.html` polished |
+| 4 | Done (decision matrix implemented; tuning ongoing) | `backend/orchestrator/rules.py` |
+| 5 | Done (Haiku selector + Oshi narrator, live upgrade over scripted floor) | `backend/orchestrator/agent.py`, `backend/orchestrator/oshi/` |
+| 6 | Done (SQLite store + survey/retrospective flow) | `backend/db/session.py`, `frontend/survey.html` |
 | 7 | — | polish + demo |
+
+Games shipped beyond the original plan: `/game1` Phoenix Ascent, `/game2` Grandmaster's
+Count, `/game3` Follow the Flame, `/game4` Tap the Tide (see `docs/PROJECT_OVERVIEW.md`).
 
 ## Design Constraints
 

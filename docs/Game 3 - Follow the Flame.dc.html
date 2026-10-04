@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{background:#050308;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#d8d0e8;overflow:hidden;}
+  a{color:#9878e8;text-decoration:none;}
+  a:hover{color:#b7a2f2;}
+  input[type=range]{accent-color:#9878e8;}
+  @keyframes g3-pulse{0%,100%{transform:scale(1);opacity:.9;}50%{transform:scale(1.06);opacity:1;}}
+  @keyframes g3-fade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</helmet>
+
+<div style="position:fixed;inset:0;background:#050308;overflow:hidden;">
+
+  <canvas ref="{{ flameRef }}" style="position:fixed;inset:0;width:100vw;height:100vh;display:block;background:radial-gradient(ellipse 80vw 40vh at 50% 110%, rgba(255,90,30,0.10) 0%, rgba(0,0,0,0) 60%);"></canvas>
+
+  <nav style="position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:20;background:rgba(7,8,15,0.4);border-radius:20px;padding:4px;backdrop-filter:blur(8px);display:flex;gap:2px;">
+    <a href="/survey" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Survey</a>
+    <a href="/" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Sensing</a>
+    <a href="/observe" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Observation</a>
+    <a href="/mirror" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Mirror</a>
+    <a href="/game1" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Game 1</a>
+    <a href="/game2" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#3a3650;padding:6px 12px;border-radius:6px;">Game 2</a>
+    <a href="#" style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#d8d0e8;padding:6px 12px;border:1px solid rgba(120,90,200,0.15);border-radius:6px;background:rgba(255,255,255,0.03);">Game 3</a>
+  </nav>
+
+  <!-- ============ SETUP ============ -->
+  <div style="position:fixed;inset:0;z-index:10;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;font-family:Georgia,serif;display:none;display:{{ setupDisp }};">
+    <div style="font-size:32px;letter-spacing:6px;text-transform:uppercase;color:rgba(240,232,250,0.92);margin-bottom:8px;text-shadow:0 2px 12px rgba(0,0,0,0.6);">follow the flame</div>
+    <div style="font-size:15px;font-style:italic;color:rgba(220,210,240,0.75);margin-bottom:40px;text-shadow:0 2px 8px rgba(0,0,0,0.6);">breathe with the fire — let it lead you</div>
+
+    <div style="margin-bottom:36px;width:min(720px,90vw);">
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,190,220,0.6);margin-bottom:14px;">duration</div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <button onClick="{{ pick2 }}" style="padding:12px 22px;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:rgba(7,8,15,0.55);border:1px solid rgba(120,90,200,0.35);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;cursor:pointer;backdrop-filter:blur(8px);border-color:{{ d2border }};box-shadow:{{ d2shadow }};">2 min</button>
+        <button onClick="{{ pick5 }}" style="padding:12px 22px;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:rgba(7,8,15,0.55);border:1px solid rgba(120,90,200,0.35);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;cursor:pointer;backdrop-filter:blur(8px);border-color:{{ d5border }};box-shadow:{{ d5shadow }};">5 min</button>
+        <button onClick="{{ pick10 }}" style="padding:12px 22px;font-size:12px;letter-spacing:3px;text-transform:uppercase;background:rgba(7,8,15,0.55);border:1px solid rgba(120,90,200,0.35);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;cursor:pointer;backdrop-filter:blur(8px);border-color:{{ d10border }};box-shadow:{{ d10shadow }};">10 min</button>
+        <input type="number" min="1" max="60" step="1" placeholder="custom (min)" value="{{ customVal }}" onInput="{{ setCustom }}" style="padding:12px 16px;font-size:12px;letter-spacing:2px;width:150px;text-align:center;background:rgba(7,8,15,0.55);border:1px solid rgba(120,90,200,0.35);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;outline:none;">
+      </div>
+    </div>
+
+    <div style="margin-bottom:40px;width:min(720px,90vw);">
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,190,220,0.6);margin-bottom:14px;">guidance</div>
+      <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">
+        <button onClick="{{ modeActive }}" style="padding:18px 24px;width:250px;text-align:center;background:rgba(7,8,15,0.55);border:1px solid rgba(120,90,200,0.35);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;cursor:pointer;backdrop-filter:blur(8px);border-color:{{ mActiveBorder }};box-shadow:{{ mActiveShadow }};">
+          <div style="font-size:13px;letter-spacing:4px;text-transform:uppercase;color:rgba(240,232,250,0.9);margin-bottom:8px;">active</div>
+          <div style="font-size:12px;font-style:italic;color:rgba(200,190,220,0.7);line-height:1.4;">breathe in · hold · out prompts guide you</div>
+        </button>
+        <button onClick="{{ modePassive }}" style="padding:18px 24px;width:250px;text-align:center;background:rgba(7,8,15,0.55);border:1px solid rgba(120,90,200,0.35);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;cursor:pointer;backdrop-filter:blur(8px);border-color:{{ mPassiveBorder }};box-shadow:{{ mPassiveShadow }};">
+          <div style="font-size:13px;letter-spacing:4px;text-transform:uppercase;color:rgba(240,232,250,0.9);margin-bottom:8px;">passive</div>
+          <div style="font-size:12px;font-style:italic;color:rgba(200,190,220,0.7);line-height:1.4;">no words — follow the glow as it swells and settles</div>
+        </button>
+      </div>
+    </div>
+
+    <button onClick="{{ begin }}" style="margin-top:8px;padding:14px 44px;background:rgba(120,90,200,0.30);border:1px solid #9878e8;border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;font-size:13px;letter-spacing:5px;text-transform:uppercase;cursor:pointer;backdrop-filter:blur(8px);">begin</button>
+  </div>
+
+  <!-- ============ COUNTDOWN ============ -->
+  <div style="position:fixed;inset:0;z-index:10;align-items:center;justify-content:center;font-family:Georgia,serif;display:none;display:{{ cdDisp }};">
+    <div style="font-size:96px;letter-spacing:6px;color:rgba(240,232,250,0.92);font-variant-numeric:tabular-nums;text-shadow:0 0 40px rgba(120,90,200,0.6),0 2px 20px rgba(0,0,0,0.7);animation:g3-pulse 1s ease-in-out infinite;">{{ countNum }}</div>
+  </div>
+
+  <!-- ============ ACTIVE ============ -->
+  <div style="position:fixed;inset:0;z-index:10;pointer-events:none;font-family:Georgia,serif;display:none;display:{{ activeDisp }};">
+    <div style="position:absolute;bottom:62px;left:0;right:0;text-align:center;display:{{ guideDisp }};">
+      <div style="font-size: 18px; letter-spacing: 8px; text-transform: uppercase; color: rgba(240,232,250,0.9); text-shadow: 0 2px 16px rgba(0,0,0,0.7); transition: opacity .4s">{{ phaseName }}</div>
+      <div style="margin-top:10px;font-size:20px;color:rgba(220,210,240,0.5);font-variant-numeric:tabular-nums;">{{ phaseCount }}</div>
+    </div>
+
+    <div style="position:absolute;top:6vh;left:0;right:0;text-align:center;font-size:11px;font-style:italic;letter-spacing:2px;color:rgba(216,208,232,0.32);">the fire steadies and brightens as your breath settles into the rhythm</div>
+
+    <div style="position:absolute;bottom:34px;left:50%;transform:translateX(-50%);width:min(720px,80vw);text-align:center;">
+      
+      <div style="width:100%;height:2px;background:rgba(200,190,220,0.15);border-radius:1px;overflow:hidden;">
+        <div style="height:100%;background:linear-gradient(90deg,rgba(120,90,200,0.5),rgba(240,200,150,0.7));width:{{ progPct }};transition:width .3s linear;"></div>
+      </div>
+    </div>
+
+    <div style="position:absolute;bottom:20px;left:20px;pointer-events:auto;background:rgba(7,8,15,0.5);border:1px dashed rgba(120,90,200,0.35);border-radius:10px;padding:10px 14px;font-family:'Helvetica Neue',sans-serif;">
+      <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(216,208,232,0.4);margin-bottom:8px;">demo · simulated breath adherence</div>
+      <input type="range" min="0" max="100" value="{{ adhVal }}" onInput="{{ setAdh }}" style="width:200px;vertical-align:middle;">
+      <button onClick="{{ skipEnd }}" style="margin-left:12px;background:transparent;border:none;color:rgba(216,208,232,0.45);font-size:10px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;">skip to end ▸</button>
+    </div>
+  </div>
+
+  <!-- ============ COMPLETE ============ -->
+  <div style="position:fixed;inset:0;z-index:10;align-items:center;justify-content:center;padding:24px;font-family:Georgia,serif;display:none;display:{{ completeDisp }};">
+    <div style="background:rgba(7,8,15,0.55);backdrop-filter:blur(12px);border:1px solid rgba(120,90,200,0.25);border-radius:12px;padding:36px 40px;text-align:center;animation:g3-fade .6s ease both;">
+      <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(200,190,220,0.55);margin-bottom:6px;">flame flow</div>
+      <div style="font-size:16px;font-style:italic;color:rgba(220,210,240,0.85);margin-bottom:16px;">your breath, this session</div>
+      <canvas ref="{{ captureRef }}" style="display:block;width:min(760px,84vw);height:200px;border-radius:8px;background:#0a0812;border:1px solid rgba(120,90,200,0.2);"></canvas>
+      <div style="display:flex;gap:24px;justify-content:center;margin-top:12px;font-family:'Helvetica Neue',sans-serif;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(200,190,220,0.6);">
+        <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:16px;height:3px;border-radius:2px;background:#ff8a3d;"></span>your breath (raw)</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:16px;height:3px;border-radius:2px;border-top:1px dashed rgba(180,160,220,0.8);"></span>guided target</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:16px;height:10px;border-radius:2px;background:rgba(239,123,42,0.10);"></span>inhale/exhale · <span style="width:16px;height:10px;border-radius:2px;background:rgba(120,90,200,0.14);"></span>hold</span>
+      </div>
+      <div style="margin:24px 0 4px;font-size:14px;font-style:italic;color:rgba(200,190,220,0.7);line-height:1.6;">notice how your body feels now — the settling that arrived without you forcing it.</div>
+      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+        <button onClick="{{ again }}" style="padding:14px 36px;background:rgba(120,90,200,0.30);border:1px solid #9878e8;border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;font-size:12px;letter-spacing:4px;text-transform:uppercase;cursor:pointer;">again</button>
+        <a href="/survey" style="padding:14px 36px;background:rgba(7,8,15,0.6);border:1px solid rgba(120,90,200,0.4);border-radius:8px;color:#d8d0e8;font-family:Georgia,serif;font-size:12px;letter-spacing:4px;text-transform:uppercase;">with grandmaster oshi</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;boxSeconds&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:3,&quot;max&quot;:6,&quot;unit&quot;:&quot;s&quot;,&quot;section&quot;:&quot;Breathing&quot;,&quot;label&quot;:&quot;Seconds per box phase&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'setup',
+    guideMode: 'active',
+    durationSec: 300,
+    customMin: '',
+    countNum: 3,
+    phaseName: 'breathe in',
+    phaseCount: 4,
+    remaining: 300,
+    cyclesDone: 0,
+    demoAdherence: null,
+  };
+
+  componentDidMount() {
+    this._last = performance.now();
+    this._adhPhase = 0;
+    this._phaseDur = this.props.boxSeconds ?? 4;
+    this._phaseIdx = 0; this._phaseElapsed = 0; this._sessionElapsed = 0; this._cycles = 0;
+    this._lastLabel = ''; this._lastCount = 0; this._lastRemain = -1;
+    this._setupFlame();
+    this._raf = requestAnimationFrame(this._loop);
+  }
+  componentWillUnmount() {
+    cancelAnimationFrame(this._raf);
+    if (this._onResize) removeEventListener('resize', this._onResize);
+    if (this._cd) clearInterval(this._cd);
+  }
+
+  flameRef = (el) => { if (el && !this._canvas) this._canvas = el; };
+
+  pick2  = () => this.setState({ durationSec: 120, customMin: '' });
+  pick5  = () => this.setState({ durationSec: 300, customMin: '' });
+  pick10 = () => this.setState({ durationSec: 600, customMin: '' });
+  setCustom = (e) => {
+    const v = e.target.value; const m = parseInt(v, 10);
+    this.setState({ customMin: v, durationSec: (m >= 1 && m <= 60) ? m * 60 : this.state.durationSec });
+  };
+  setAdh = (e) => this.setState({ demoAdherence: (+e.target.value) / 100 });
+  again  = () => this.setState({ screen: 'setup' });
+  skipEnd = () => { this._sessionElapsed = this.state.durationSec; };
+  modeActive  = () => this.setState({ guideMode: 'active' });
+  modePassive = () => this.setState({ guideMode: 'passive' });
+  captureRef = (el) => { this._cap2 = el; };
+
+  begin = () => {
+    this._phaseDur = this.props.boxSeconds ?? 4;
+    let n = 3;
+    this.setState({ screen: 'countdown', countNum: n });
+    this._cd = setInterval(() => {
+      n -= 1;
+      if (n <= 0) { clearInterval(this._cd); this._cd = null; this._startActive(); }
+      else { this.setState({ countNum: n }); }
+    }, 1000);
+  };
+
+  _startActive = () => {
+    this._phaseIdx = 0; this._phaseElapsed = 0; this._sessionElapsed = 0; this._cycles = 0;
+    this._lastLabel = ''; this._lastCount = 0; this._lastRemain = -1;
+    this._cap = []; this._capAccum = 0; this._rawEma = 0; this._rawDrift = 0;
+    this.setState({ screen: 'active', phaseName: 'breathe in', phaseCount: this._phaseDur,
+                    remaining: this.state.durationSec, cyclesDone: 0 });
+  };
+
+  _finish = () => {
+    this.setState({ screen: 'complete', remaining: 0 });
+    requestAnimationFrame(() => requestAnimationFrame(() => this._drawCapture()));
+  };
+
+  _drawCapture() {
+    const cv = this._cap2; if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth || 720, H = cv.clientHeight || 200;
+    cv.width = Math.floor(W * dpr); cv.height = Math.floor(H * dpr);
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const padL = 10, padR = 10, padT = 16, padB = 16;
+    ctx.clearRect(0, 0, W, H);
+    const data = this._cap || [];
+    // Map over the actually-captured span (not the planned duration) so the
+    // trace always fills the frame, even on an early finish.
+    const span = data.length ? Math.max(data[data.length - 1].t, 1) : 1;
+    const X = t => padL + (t / span) * (W - padL - padR);
+    const Y = v => (H - padB) - Math.max(0, Math.min(1, v)) * (H - padT - padB);
+    // guided 4-4-4-4 phase bands
+    const bandCol = ph => (ph === 0 || ph === 2) ? 'rgba(239,123,42,0.09)' : 'rgba(120,90,200,0.13)';
+    for (let i = 1; i < data.length; i++) {
+      const x0 = X(data[i - 1].t), x1 = X(data[i].t);
+      ctx.fillStyle = bandCol(data[i].ph);
+      ctx.fillRect(x0, padT, Math.max(1, x1 - x0), H - padT - padB);
+    }
+    // guided target curve (dashed)
+    if (data.length > 1) {
+      ctx.strokeStyle = 'rgba(180,160,220,0.55)'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); data.forEach((d, i) => { const x = X(d.t), y = Y(d.tgt); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    // raw breath (solid)
+    if (data.length > 1) {
+      ctx.strokeStyle = '#ff8a3d'; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+      ctx.beginPath(); data.forEach((d, i) => { const x = X(d.t), y = Y(d.raw); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke();
+    }
+    // baseline
+    ctx.strokeStyle = 'rgba(200,190,220,0.15)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, H - padB); ctx.lineTo(W - padR, H - padB); ctx.stroke();
+    if (!data.length) {
+      ctx.fillStyle = 'rgba(200,190,220,0.4)'; ctx.font = '12px Helvetica Neue, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('no breath captured', W / 2, H / 2);
+    }
+  }
+
+  _fmt(sec) {
+    sec = Math.max(0, Math.round(sec));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  _loop = (now) => {
+    const dt = Math.min(0.05, (now - this._last) / 1000); this._last = now;
+    if (!this.flame && this._canvas) this._setupFlame();
+    const s = this.state;
+
+    let a;
+    if (s.demoAdherence != null) a = s.demoAdherence;
+    else {
+      this._adhPhase += dt * 0.11;
+      a = 0.6 + 0.28 * Math.sin(this._adhPhase) + 0.06 * Math.sin(this._adhPhase * 2.7);
+      a = Math.max(0.15, Math.min(0.95, a));
+    }
+
+    let b = 0, kind = 'holdEmpty';
+    if (s.screen === 'active') {
+      const dur = this._phaseDur;
+      this._phaseElapsed += dt; this._sessionElapsed += dt;
+      if (this._phaseElapsed >= dur) {
+        this._phaseElapsed -= dur;
+        this._phaseIdx = (this._phaseIdx + 1) % 4;
+        if (this._phaseIdx === 0) this._cycles++;
+      }
+      kind = ['inhale', 'holdFull', 'exhale', 'holdEmpty'][this._phaseIdx];
+      const name = ['breathe in', 'hold', 'breathe out', 'hold'][this._phaseIdx];
+      const t = this._phaseElapsed / dur;
+      b = kind === 'inhale' ? t : kind === 'holdFull' ? 1 : kind === 'exhale' ? 1 - t : 0;
+      // Prototype stand-in for the real-time chest signal (~15 Hz). The real app
+      // logs the actual raw chest-ROI trace here — NOT the 8.5 s FFT estimate.
+      const lag = 0.06 + 0.06 * a;
+      this._rawEma += (b - this._rawEma) * lag;
+      this._rawDrift = (this._rawDrift || 0) * 0.985 + (Math.random() - 0.5) * 0.012;
+      let raw = this._rawEma + (Math.random() - 0.5) * (1 - a) * 0.12 + this._rawDrift * (1 - a) * 2;
+      raw = Math.max(0, Math.min(1, raw));
+      this._capAccum += dt;
+      if (this._capAccum >= 0.1) { this._capAccum -= 0.1; (this._cap || (this._cap = [])).push({ t: this._sessionElapsed, tgt: b, raw, ph: this._phaseIdx }); }
+
+      const cnt = Math.max(1, Math.ceil(dur - this._phaseElapsed));
+      const remain = Math.max(0, Math.round(s.durationSec - this._sessionElapsed));
+      if (name !== this._lastLabel || cnt !== this._lastCount || remain !== this._lastRemain) {
+        this._lastLabel = name; this._lastCount = cnt; this._lastRemain = remain;
+        this.setState({ phaseName: name, phaseCount: cnt, remaining: remain, cyclesDone: this._cycles });
+      }
+      if (this._sessionElapsed >= s.durationSec) this._finish();
+    } else if (s.screen === 'setup' || s.screen === 'countdown') {
+      b = 0.45 + 0.4 * (0.5 + 0.5 * Math.sin(now / 2600)); kind = 'inhale';
+    }
+
+    if (this.flame) {
+      this.flame.setBreath(b, kind);
+      this.flame.setAdherence(a);
+      this.flame.step(dt);
+      this.flame.draw();
+    }
+    this._raf = requestAnimationFrame(this._loop);
+  };
+
+  _setupFlame() {
+    const canvas = this._canvas;
+    if (!canvas) return;
+    const PALETTES = {
+      warm:   { outer:'#c92e2e', middle:'#ef7b2a', inner:'#f9c83a', core:'#fff5b0' },
+      hot:    { outer:'#e93838', middle:'#ff9844', inner:'#ffd34d', core:'#ffffd8' },
+      cool:   { outer:'#8b2424', middle:'#bc5622', inner:'#d59230', core:'#efcb88' },
+      embers: { outer:'#5e1414', middle:'#982f15', inner:'#c0701d', core:'#dca044' },
+    };
+    const SRC = [
+      { x:0, scale:1.0 }, { x:0, scale:1.0 }, { x:0, scale:0.95 },
+      { x:-52, scale:0.62 }, { x:48, scale:0.65 }, { x:-22, scale:0.55 }, { x:26, scale:0.55 },
+    ];
+    const F = {
+      canvas, ctx: canvas.getContext('2d'), tongues: [], sparks: [],
+      tH:60, tW:26, tE:4, tL:1.2, tWob:0.1, tPal:0,
+      H:60, W:26, E:4, L:1.2, Wob:0.1, Pal:0, glowB:1.2, sparkRate:0, _acc:0, _sacc:0,
+      resize() {
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = Math.floor(innerWidth * dpr);
+        this.canvas.height = Math.floor(innerHeight * dpr);
+        this.ctx.setTransform(1,0,0,1,0,0); this.ctx.scale(dpr, dpr);
+        this.w = innerWidth; this.h = innerHeight; this.cx = this.w/2;
+        this.baseY = this.h * 0.6; this.maxH = Math.max(120, (this.baseY - 70) / 1.4);
+      },
+      _ease(x){ x = Math.max(0, Math.min(1, x)); return x*x*(3-2*x); },
+      setBreath(b) { const bb = this._ease(b);
+        this.tH = 55 + (this.maxH - 55) * bb; this.tW = 24 + 38 * bb;
+        this.tE = 3 + 5.5 * bb; this.tL = 1.0 + 1.6 * bb;
+        this.glowLevel = bb; },
+      setAdherence(a) { a = Math.max(0, Math.min(1, a));
+        this.tWob = 0.06 + (1 - a) * 0.9; this.tPal = -0.7 + 1.4 * a;
+        this.glowB = 1.0 + 1.3 * a; this.sparkRate = a > 0.62 ? (a - 0.62) * 22 : 0; },
+      step(dt) {
+        const k = Math.min(1, dt / 1.6);
+        this.H += (this.tH-this.H)*k; this.W += (this.tW-this.W)*k; this.E += (this.tE-this.E)*k;
+        this.L += (this.tL-this.L)*k; this.Wob += (this.tWob-this.Wob)*k; this.Pal += (this.tPal-this.Pal)*k;
+        this._acc += this.E * dt; let n = Math.floor(this._acc); this._acc -= n;
+        for (let i=0;i<n;i++) this._spawn();
+        for (let i=this.tongues.length-1;i>=0;i--){ const t=this.tongues[i]; t.age+=dt; t.fp+=dt*t.fs*(0.5+this.Wob); if(t.age>=t.life) this.tongues.splice(i,1); }
+        if (this.sparkRate>0){ this._sacc+=this.sparkRate*dt; let m=Math.floor(this._sacc); this._sacc-=m; for(let i=0;i<m;i++) this._spawnSpark(); } else this._sacc=0;
+        for (let i=this.sparks.length-1;i>=0;i--){ const p=this.sparks[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy-=32*dt; p.vx*=(1-0.5*dt); p.age+=dt; if(p.age>=p.life) this.sparks.splice(i,1); }
+      },
+      _spawn() {
+        const src = SRC[Math.floor(Math.random()*SRC.length)];
+        this.tongues.push({ baseX:this.cx+src.x+(Math.random()-0.5)*12, baseY:this.baseY+(Math.random()-0.5)*6,
+          height:this.H*src.scale*(0.85+Math.random()*0.3), width:this.W*src.scale*(0.8+Math.random()*0.4),
+          life:this.L*(0.75+Math.random()*0.5), age:0, sway:(Math.random()-0.5)*0.9, fp:Math.random()*6.28, fs:3.5+Math.random()*2.5 });
+      },
+      _spawnSpark() {
+        if (!this.tongues.length) return;
+        const tg = this.tongues[Math.floor(Math.random()*this.tongues.length)];
+        const ls = Math.sin((tg.age/tg.life)*Math.PI); if (ls<0.3) return;
+        const tip = tg.height*ls*(0.65+Math.random()*0.25);
+        this.sparks.push({ x:tg.baseX+(Math.random()-0.5)*tg.width*0.4, y:tg.baseY-tip,
+          vx:(Math.random()-0.5)*40, vy:-65-Math.random()*60, age:0, life:1.2+Math.random()*1.3, size:1.2+Math.random()*1.6 });
+      },
+      draw() {
+        const ctx=this.ctx, W=this.w, H=this.h;
+        ctx.globalCompositeOperation='source-over'; ctx.fillStyle='#05030a'; ctx.fillRect(0,0,W,H);
+        // Circular glow centred on the flame, filling the whole canvas (no top/bottom
+        // cutoff). Radius + brightness swell with the box-breath level so the 4-4-4-4
+        // pattern reads clearly from the background alone (the passive guide).
+        const gb=this.glowB;
+        const gl=(this.glowLevel==null?0.5:this.glowLevel);
+        const cx=this.cx, cy=this.baseY - (55 + (this.maxH-55)*gl)*0.42;
+        const R=(150 + this.maxH*0.55) * (0.58 + 0.62*gl);
+        const bright=gb * (0.5 + 0.78*gl);
+        ctx.globalCompositeOperation='lighter';
+        const g=ctx.createRadialGradient(cx,cy,0,cx,cy,R);
+        g.addColorStop(0,`rgba(235,115,45,${0.24*bright})`); g.addColorStop(0.45,`rgba(150,55,20,${0.10*bright})`); g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+        const vb=ctx.createRadialGradient(cx,cy,0,cx,cy,R*1.3);
+        vb.addColorStop(0,`rgba(168,110,220,${0.08*bright})`); vb.addColorStop(0.55,`rgba(110,70,180,${0.04*bright})`); vb.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=vb; ctx.fillRect(0,0,W,H);
+        const pal=this._pal();
+        const sorted=this.tongues.slice().sort((a,b)=>(a.height*a.width)-(b.height*b.width));
+        ctx.globalCompositeOperation='lighter';
+        for(const t of sorted){ this._shape(t,1.5,'rgba(170,115,220,0.05)'); this._shape(t,1.26,'rgba(230,120,80,0.07)'); }
+        ctx.globalCompositeOperation='source-over';
+        for(const t of sorted) this._tongue(t,pal);
+        this._drawSparks();
+      },
+      _drawSparks() {
+        if(!this.sparks.length) return; const ctx=this.ctx; ctx.globalCompositeOperation='lighter';
+        for(const s of this.sparks){ const t=1-(s.age/s.life); const fade=t*t; const r=s.size*(0.7+0.3*t)*3.0; const al=0.8*fade;
+          const gr=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,r);
+          gr.addColorStop(0,`rgba(255,235,175,${al})`); gr.addColorStop(0.35,`rgba(255,155,65,${al*0.55})`); gr.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(s.x,s.y,r,0,6.283); ctx.fill(); }
+        ctx.globalCompositeOperation='source-over';
+      },
+      _tongue(t,pal){ this._shape(t,1.0,pal.outer); this._shape(t,0.72,pal.middle); this._shape(t,0.46,pal.inner);
+        if(t.height*Math.sin((t.age/t.life)*Math.PI)>75) this._shape(t,0.22,pal.core); },
+      _shape(t,scale,color){
+        const ctx=this.ctx; const life=t.age/t.life; const ls=Math.sin(life*Math.PI); if(ls<0.02) return;
+        const h=t.height*ls*scale, w=t.width*ls*scale; if(h<3||w<1.5) return;
+        const fx=Math.sin(t.fp)*6*this.Wob*scale, fy=Math.sin(t.fp*1.3)*4, sway=t.sway*22*this.Wob*(0.6+scale);
+        const bY=t.baseY, tipX=t.baseX+sway+fx, tipY=bY-h+fy;
+        ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(t.baseX-w,bY);
+        ctx.bezierCurveTo(t.baseX-w*1.45,bY-h*0.22,t.baseX-w*0.18,bY-h*0.72,tipX,tipY);
+        ctx.bezierCurveTo(t.baseX+w*0.18,bY-h*0.72,t.baseX+w*1.45,bY-h*0.22,t.baseX+w,bY);
+        ctx.bezierCurveTo(t.baseX+w*0.55,bY+w*0.45,t.baseX-w*0.55,bY+w*0.45,t.baseX-w,bY);
+        ctx.closePath(); ctx.fill();
+      },
+      _pal(){ const s=this.Pal;
+        if(s<=-1) return PALETTES.embers;
+        if(s<-0.3) return this._lp(PALETTES.embers,PALETTES.cool,(s+1)/0.7);
+        if(s<0.3) return this._lp(PALETTES.cool,PALETTES.warm,(s+0.3)/0.6);
+        return this._lp(PALETTES.warm,PALETTES.hot,Math.min(1,(s-0.3)/0.7)); },
+      _lp(a,b,t){ return { outer:this._lh(a.outer,b.outer,t), middle:this._lh(a.middle,b.middle,t), inner:this._lh(a.inner,b.inner,t), core:this._lh(a.core,b.core,t) }; },
+      _lh(c1,c2,t){ const h=c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]; const a=h(c1),b=h(c2);
+        return `rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`; },
+    };
+    F.resize();
+    this._onResize = () => F.resize();
+    addEventListener('resize', this._onResize);
+    this.flame = F;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const dur = s.durationSec || 300;
+    const prog = (s.screen === 'active' || s.screen === 'complete')
+      ? Math.max(0, Math.min(1, 1 - s.remaining / dur)) : 0;
+    const selBorder = v => s.durationSec === v ? '#9878e8' : 'rgba(120,90,200,0.35)';
+    const selShadow = v => s.durationSec === v ? 'inset 0 0 0 1px #9878e8, 0 0 16px rgba(152,120,232,0.4)' : 'none';
+    return {
+      setupDisp: s.screen === 'setup' ? 'flex' : 'none',
+      cdDisp: s.screen === 'countdown' ? 'flex' : 'none',
+      activeDisp: s.screen === 'active' ? 'block' : 'none',
+      completeDisp: s.screen === 'complete' ? 'flex' : 'none',
+      guideDisp: s.guideMode === 'active' ? 'block' : 'none',
+      mActiveBorder: s.guideMode === 'active' ? '#9878e8' : 'rgba(120,90,200,0.35)',
+      mActiveShadow: s.guideMode === 'active' ? 'inset 0 0 0 1px #9878e8, 0 0 16px rgba(152,120,232,0.4)' : 'none',
+      mPassiveBorder: s.guideMode === 'passive' ? '#9878e8' : 'rgba(120,90,200,0.35)',
+      mPassiveShadow: s.guideMode === 'passive' ? 'inset 0 0 0 1px #9878e8, 0 0 16px rgba(152,120,232,0.4)' : 'none',
+      modeActive: this.modeActive, modePassive: this.modePassive, captureRef: this.captureRef,
+      countNum: s.countNum, phaseName: s.phaseName, phaseCount: s.phaseCount,
+      remMMSS: this._fmt(s.remaining), progPct: (prog * 100).toFixed(2) + '%',
+      cyclesDone: s.cyclesDone, practMin: Math.round(dur / 60),
+      customVal: s.customMin,
+      adhVal: s.demoAdherence == null ? 60 : Math.round(s.demoAdherence * 100),
+      d2border: selBorder(120), d5border: selBorder(300), d10border: selBorder(600),
+      d2shadow: selShadow(120), d5shadow: selShadow(300), d10shadow: selShadow(600),
+      guideText: this.props.showBreathGuideText ?? true,
+      flameRef: this.flameRef,
+      pick2: this.pick2, pick5: this.pick5, pick10: this.pick10,
+      setCustom: this.setCustom, begin: this.begin, again: this.again,
+      setAdh: this.setAdh, skipEnd: this.skipEnd,
+    };
+  }
+}
+</script>
+</body>
+</html>

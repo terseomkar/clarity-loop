@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  html, body { margin: 0; padding: 0; background: #07080f; }
+  @keyframes oshi-fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes oshi-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes oshi-breathe { 0%,100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.09); opacity: 1; } }
+  @keyframes oshi-glow-pulse { 0%,100% { box-shadow: 0 0 22px rgba(152,120,232,0.28), inset 0 0 30px rgba(152,120,232,0.06); } 50% { box-shadow: 0 0 40px rgba(152,120,232,0.45), inset 0 0 40px rgba(152,120,232,0.12); } }
+  @keyframes oshi-drift { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 15% { opacity: 0.7; } 85% { opacity: 0.5; } 100% { transform: translateY(-70px) rotate(12deg); opacity: 0; } }
+  @keyframes oshi-caret { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+</style>
+</helmet>
+
+<div style="position: fixed; inset: 0; overflow: hidden; background: radial-gradient(ellipse 90vw 70vh at 50% 12%, rgba(120,90,200,0.10), transparent 62%), radial-gradient(ellipse 60vw 50vh at 78% 88%, rgba(90,150,110,0.07), transparent 60%), #07080f; color: #d8d0e8; font-family: 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+
+  <!-- ambient drifting embers -->
+  <div style="position: absolute; inset: 0; pointer-events: none; z-index: 0;">
+    <span style="position:absolute; left:14%; top:70%; width:4px; height:4px; border-radius:50%; background:rgba(240,190,120,0.7); box-shadow:0 0 8px rgba(240,190,120,0.8); animation: oshi-drift 9s ease-in-out infinite;"></span>
+    <span style="position:absolute; left:26%; top:82%; width:3px; height:3px; border-radius:50%; background:rgba(152,120,232,0.7); box-shadow:0 0 8px rgba(152,120,232,0.8); animation: oshi-drift 11s ease-in-out 2s infinite;"></span>
+    <span style="position:absolute; left:70%; top:78%; width:3px; height:3px; border-radius:50%; background:rgba(240,190,120,0.6); box-shadow:0 0 7px rgba(240,190,120,0.7); animation: oshi-drift 12s ease-in-out 4s infinite;"></span>
+    <span style="position:absolute; left:83%; top:66%; width:4px; height:4px; border-radius:50%; background:rgba(140,200,150,0.6); box-shadow:0 0 8px rgba(140,200,150,0.7); animation: oshi-drift 10s ease-in-out 1s infinite;"></span>
+  </div>
+  <div style="position:absolute; inset:0; pointer-events:none; z-index:1; background: radial-gradient(ellipse at center, transparent 46%, rgba(4,3,8,0.55) 100%);"></div>
+
+  <!-- ── progress dots (survey only) ─────────────────────────── -->
+  <sc-if value="{{ showProgress }}">
+    <div style="position: fixed; top: 22px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; gap: 2px; align-items: center;">
+      <sc-for list="{{ dots }}" as="dot" hint-placeholder-count="4">
+        <span onClick="{{ dot.onClick }}" title="{{ dot.title }}" style="{{ dot.wrap }}"><span style="{{ dot.style }}"></span></span>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <!-- ── center stage ────────────────────────────────────────── -->
+  <div style="position: fixed; inset: 0; z-index: 12; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px 120px; box-sizing: border-box; text-align: center;">
+
+    <!-- WELCOME -->
+    <sc-if value="{{ scr.welcome }}" hint-placeholder-val="{{ true }}">
+      <div style="animation: oshi-fade-up 1.1s ease both; display:flex; flex-direction:column; align-items:center;">
+        <div style="font-size: 11px; letter-spacing: 6px; text-transform: uppercase; color: #6058a0; margin-bottom: 20px;">with grandmaster oshi</div>
+        <div style="font-family: Georgia, serif; font-size: 46px; letter-spacing: 8px; text-transform: uppercase; color: rgba(240,232,250,0.94); text-shadow: 0 2px 24px rgba(0,0,0,0.7);">clarity loop</div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 16px; color: rgba(200,190,220,0.7); margin-top: 14px; letter-spacing: 0.4px;">a moment on the branch, before you play</div>
+        <button onClick="{{ begin }}" style="margin-top: 46px; padding: 15px 52px; background: rgba(120,90,200,0.28); border: 1px solid #9878e8; border-radius: 9px; color: #eee6fb; font-family: Georgia, serif; font-size: 13px; letter-spacing: 5px; text-transform: uppercase; cursor: pointer; backdrop-filter: blur(8px);" style-hover="background: rgba(120,90,200,0.45); transform: translateY(-2px);">enter</button>
+      </div>
+    </sc-if>
+
+    <!-- SENSATION -->
+    <sc-if value="{{ scr.sensation }}">
+      <div style="animation: oshi-fade-up 0.9s ease both; width: min(660px, 92vw); display:flex; flex-direction:column; align-items:center;">
+        <div style="font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: #6058a0; margin-bottom: 26px;">{{ instruction }}</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;">
+          <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="8">
+            <button onClick="{{ chip.select }}" style="{{ chip.style }}">{{ chip.label }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ showOther }}">
+          <input value="{{ otherText }}" onInput="{{ otherInput }}" onKeyDown="{{ otherKeydown }}" placeholder="name it, then press enter…" style="margin-top: 20px; width: min(420px, 84vw); padding: 13px 18px; background: rgba(7,8,15,0.6); border: 1px solid rgba(120,90,200,0.4); border-radius: 9px; color: #d8d0e8; font-family: Georgia, serif; font-style: italic; font-size: 15px; text-align: center; outline: none;">
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- INTENSITY (shared survey + retro) -->
+    <sc-if value="{{ scr.intensity }}">
+      <div style="animation: oshi-fade-up 0.9s ease both; display:flex; flex-direction:column; align-items:center;">
+        <div style="font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: #6058a0; margin-bottom: 22px;">{{ instruction }}</div>
+        <div onPointerDown="{{ ringDown }}" onPointerMove="{{ ringMove }}" onPointerUp="{{ ringUp }}" style="position: relative; width: 340px; height: 340px; max-width: 84vw; max-height: 84vw; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: none;">
+          <div style="position:absolute; width: 340px; height: 340px; max-width:84vw; max-height:84vw; border-radius: 50%; border: 1px dashed rgba(120,90,200,0.18);"></div>
+          <div style="{{ ringStyle }}"></div>
+          <div style="position: relative; z-index: 2; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle, rgba(240,232,250,0.92), rgba(152,120,232,0.15)); box-shadow: 0 0 16px rgba(152,120,232,0.6); pointer-events: none;"></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- BODY -->
+    <sc-if value="{{ scr.body }}">
+      <div style="animation: oshi-fade-up 0.9s ease both; display:flex; flex-direction:column; align-items:center;">
+        <div style="font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: #6058a0; margin-bottom: 12px;">{{ instruction }}</div>
+        <svg viewBox="0 0 200 380" style="width: 200px; height: 380px; max-height: 54vh; overflow: visible;">
+          <defs>
+            <linearGradient id="oshiSil" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#a892e0" stop-opacity="0.32"></stop>
+              <stop offset="1" stop-color="#7360b0" stop-opacity="0.17"></stop>
+            </linearGradient>
+            <filter id="oshiSilGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#9878e8" flood-opacity="0.5"></feDropShadow>
+            </filter>
+          </defs>
+          <!-- visible smooth silhouette (single natural outline) -->
+          <g fill="url(#oshiSil)" filter="url(#oshiSilGlow)" style="pointer-events:none;">
+            <path d="M100 12 C113 12 122 22 121 36 C121 45 117 51 114 56 C119 60 126 63 134 69 C144 76 150 92 152 116 C154 143 153 172 151 196 C150 210 149 219 148 227 C148 234 143 236 139 233 C136 230 137 222 137 214 C136 192 134 166 132 142 C131 126 128 110 122 100 C124 122 120 140 119 156 C118 176 124 190 127 202 C130 230 128 262 126 292 C125 320 123 340 122 353 C122 360 126 364 130 365 C133 367 133 371 129 372 C121 373 114 371 112 365 C111 356 112 344 111 330 C110 300 109 270 108 242 C107 226 105 218 100 214 C95 218 93 226 92 242 C91 270 90 300 89 330 C88 344 89 356 88 365 C86 371 79 373 71 372 C67 371 67 367 70 365 C74 364 78 360 78 353 C77 340 75 320 74 292 C72 262 70 230 73 202 C76 190 82 176 81 156 C80 140 76 122 78 100 C72 110 69 126 68 142 C66 166 64 192 63 214 C63 222 64 230 61 233 C57 236 52 234 52 227 C51 219 50 210 49 196 C47 172 46 143 48 116 C50 92 56 76 66 69 C74 63 81 60 86 56 C83 51 79 45 79 36 C78 22 87 12 100 12 Z"></path>
+          </g>
+          <!-- invisible tappable regions — highlight on select -->
+          <g stroke="none">
+            
+            <ellipse cx="146" cy="160" rx="12" ry="58" fill="{{ body.arms.fill }}" onClick="{{ body.arms.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.arms.glow }};"></ellipse>
+            <ellipse cx="54" cy="160" rx="12" ry="58" fill="{{ body.arms.fill }}" onClick="{{ body.arms.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.arms.glow }};"></ellipse>
+            <ellipse cx="116" cy="290" rx="16" ry="78" fill="{{ body.legs.fill }}" onClick="{{ body.legs.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.legs.glow }};"></ellipse>
+            <ellipse cx="84" cy="290" rx="16" ry="78" fill="{{ body.legs.fill }}" onClick="{{ body.legs.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.legs.glow }};"></ellipse>
+            <circle cx="100" cy="34" r="22" fill="{{ body.head.fill }}" onClick="{{ body.head.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.head.glow }};"></circle>
+            <ellipse cx="100" cy="62" rx="13" ry="11" fill="{{ body.throat.fill }}" onClick="{{ body.throat.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.throat.glow }};"></ellipse>
+            <ellipse cx="100" cy="106" rx="34" ry="28" fill="{{ body.chest.fill }}" onClick="{{ body.chest.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.chest.glow }};"></ellipse>
+            <ellipse cx="100" cy="77" rx="46" ry="11" fill="{{ body.shoulders.fill }}" onClick="{{ body.shoulders.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.shoulders.glow }};"></ellipse>
+            <ellipse cx="100" cy="152" rx="30" ry="24" fill="{{ body.belly.fill }}" onClick="{{ body.belly.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.belly.glow }};"></ellipse>
+            <ellipse cx="100" cy="196" rx="30" ry="22" fill="{{ body.core.fill }}" onClick="{{ body.core.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.core.glow }};"></ellipse>
+            <ellipse cx="119" cy="366" rx="16" ry="11" fill="{{ body.feet.fill }}" onClick="{{ body.feet.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.feet.glow }};"></ellipse>
+            <ellipse cx="81" cy="366" rx="16" ry="11" fill="{{ body.feet.fill }}" onClick="{{ body.feet.select }}" style="cursor:pointer; pointer-events:all; transition:fill 0.25s, filter 0.25s; filter:{{ body.feet.glow }};"></ellipse>
+          </g>
+        </svg>
+        <div style="height: 22px; margin-top: 10px; font-family: Georgia, serif; font-style: italic; font-size: 15px; color: rgba(220,210,240,0.85); letter-spacing: 1px;">{{ bodyLabel }}</div>
+      </div>
+    </sc-if>
+
+    <!-- EMOTION WHEEL -->
+    <sc-if value="{{ scr.emotion }}">
+      <div style="font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: #6058a0; margin-bottom: 10px; flex-shrink:0;">{{ instruction }}</div><div style="animation: oshi-fade-up 0.9s ease both; display:flex; flex-direction:column; align-items:center; max-height:100%; overflow-y:auto; padding:2px 0;">
+        
+        <svg viewBox="0 0 800 800" style="flex-shrink: 0; width: 502px; height: 504px; overflow: visible">
+          <sc-for list="{{ wheel }}" as="seg" hint-placeholder-count="40">
+            <path d="{{ seg.d }}" fill="{{ seg.fill }}" stroke="{{ seg.stroke }}" stroke-width="{{ seg.sw }}" onClick="{{ seg.select }}" style="cursor:pointer;"></path>
+          </sc-for>
+          {{ wheelLabelsEl }}
+        </svg>
+        <div style="height: 22px; margin-top: 12px; font-family: Georgia, serif; font-style: italic; font-size: 16px; color: rgba(230,222,246,0.9); letter-spacing: 0.5px;">{{ emotionSel }}</div>
+      </div>
+    </sc-if>
+
+    <!-- OFFERING -->
+    <sc-if value="{{ scr.offering }}">
+      <div style="animation: oshi-fade-up 0.9s ease both; width: min(760px, 94vw); display:flex; flex-direction:column; align-items:center;">
+        <div style="font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: #6058a0; margin-bottom: 26px;">{{ instruction }}</div>
+        <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+          <sc-for list="{{ paths }}" as="p" hint-placeholder-count="2">
+            <button onClick="{{ p.select }}" style="{{ p.style }}" style-hover="border-color: #9878e8; transform: translateY(-3px);">
+              <div style="font-family: Georgia, serif; font-size: 16px; letter-spacing: 3px; text-transform: uppercase; color: rgba(240,232,250,0.92); margin-bottom: 6px;">{{ p.title }}</div>
+              <div style="font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #9878e8; margin-bottom: 14px;">{{ p.goal }}</div>
+              <div style="font-family: Georgia, serif; font-style: italic; font-size: 13px; color: rgba(200,190,220,0.72); line-height: 1.5;">{{ p.desc }}</div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- SESSION (simulated) -->
+    <sc-if value="{{ scr.session }}">
+      <div style="animation: oshi-fade 1s ease both; display:flex; flex-direction:column; align-items:center;">
+        <div style="width: 120px; height: 120px; border-radius: 50%; border: 1px solid rgba(152,120,232,0.5); animation: oshi-breathe 6s ease-in-out infinite, oshi-glow-pulse 6s ease-in-out infinite; background: radial-gradient(circle, rgba(152,120,232,0.22), transparent 70%);"></div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 17px; color: rgba(220,210,240,0.8); margin-top: 40px;">{{ sessionTitle }}</div>
+        <div style="font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: #3a3650; margin-top: 12px;">the forest is holding the session · this stands in for the game</div>
+        <button onClick="{{ next }}" style="{{ continueStyle }}" style-hover="background: rgba(120,90,200,0.4); transform: translateY(-2px);">i have returned</button>
+      </div>
+    </sc-if>
+
+    <!-- REFLECTION -->
+    <sc-if value="{{ scr.reflection }}">
+      <div style="animation: oshi-fade-up 1s ease both; width: min(680px, 92vw); display:flex; flex-direction:column; align-items:center;">
+        <sc-if value="{{ showShiftVisual }}">
+          <div style="display:flex; align-items:center; gap: 34px; margin-bottom: 34px;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+              <div style="{{ shiftBefore }}"></div>
+              <div style="font-size:9px; letter-spacing:3px; text-transform:uppercase; color:#3a3650;">then</div>
+            </div>
+            <div style="color:#3a3650; font-size:18px;">→</div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+              <div style="{{ shiftAfter }}"></div>
+              <div style="font-size:9px; letter-spacing:3px; text-transform:uppercase; color:#6058a0;">now</div>
+            </div>
+          </div>
+        </sc-if>
+        <div style="font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: #6058a0; margin-bottom: 18px;">a question to sit with</div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 24px; line-height: 1.55; color: rgba(240,232,250,0.94); max-width: 620px; text-wrap: pretty; text-shadow: 0 2px 18px rgba(0,0,0,0.6);">{{ contemplation }}</div>
+        <div style="width: 14px; height: 14px; border-radius: 50%; margin-top: 40px; background: radial-gradient(circle, rgba(152,120,232,0.9), rgba(152,120,232,0.1)); animation: oshi-breathe 7s ease-in-out infinite;"></div>
+        <button onClick="{{ next }}" style="margin-top: 40px; padding: 13px 40px; background: transparent; border: 1px solid rgba(120,90,200,0.4); border-radius: 9px; color: rgba(216,208,232,0.8); font-family: Georgia, serif; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; cursor: pointer;" style-hover="border-color: #9878e8; color:#eee6fb;">return to the forest</button>
+      </div>
+    </sc-if>
+
+    <!-- COMPLETE -->
+    <sc-if value="{{ scr.complete }}">
+      <div style="animation: oshi-fade-up 1.1s ease both; display:flex; flex-direction:column; align-items:center;">
+        <div style="font-family: Georgia, serif; font-size: 30px; letter-spacing: 4px; color: rgba(240,232,250,0.92);">until the next stillness</div>
+        <div style="font-family: Georgia, serif; font-style: italic; font-size: 15px; color: rgba(200,190,220,0.65); margin-top: 14px;">the branch remains, whenever the sky grows loud</div>
+        <button onClick="{{ restart }}" style="margin-top: 44px; padding: 13px 44px; background: rgba(120,90,200,0.22); border: 1px solid rgba(120,90,200,0.5); border-radius: 9px; color: #eee6fb; font-family: Georgia, serif; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; cursor: pointer;" style-hover="background: rgba(120,90,200,0.4);">begin again</button>
+      </div>
+    </sc-if>
+
+  </div>
+
+  <!-- ── Oshi corner portrait + caption ──────────────────────── -->
+  <div style="position: fixed; left: 34px; bottom: 34px; z-index: 25; display: flex; align-items: flex-end; gap: 20px; max-width: min(620px, 88vw);">
+    <div style="position: relative; flex-shrink: 0; width: 116px; height: 116px; border-radius: 50%; overflow: hidden; border: 1px solid rgba(152,120,232,0.4); animation: oshi-glow-pulse 7s ease-in-out infinite;">
+      <div role="img" aria-label="Grandmaster Oshi" style="{{ portraitStyle }}"></div>
+    </div>
+    <div style="padding-bottom: 8px; min-height: 40px;">
+      <div style="font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: #6058a0; margin-bottom: 8px;">grandmaster oshi{{ liveTag }}</div>
+      <div style="font-family: Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.5; color: rgba(232,224,246,0.92); text-wrap: pretty; text-shadow: 0 2px 14px rgba(0,0,0,0.7);">{{ oshiLine }}<span style="{{ caretStyle }}">▌</span></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveAgent&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;timeOfDay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;morning&quot;,&quot;evening&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;'auto'|'morning'|'evening'&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;showShiftVisual&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Retrospective&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'welcome',
+    oshiLine: '',
+    typing: false,
+    answers: { sensation: null, intensity: null, body: null, emotion: null, path: null, intensityAfter: null },
+    otherText: '',
+    ringActive: false,
+    session: null,
+    contemplation: '',
+    _reqId: 0,
+  };
+
+  // ---- persona ----
+  PERSONA = `ROLE: You are Grandmaster Oshi, an ancient, moss-covered sloth sage and keeper of the living forest. Unhurried, deeply still, profoundly warm, softly mischievous and cryptic. You embody Self-Energy: compassion, curiosity, calm, connectedness. Every inner experience is a natural "current" or "part" of a vast forest ecosystem — none are bad, none need fixing; there are no accidents in the grand design. You welcome whatever part has stepped forward.
+STRICT CONSTRAINTS:
+1. Absolute maximum of two sentences. One is often more potent. Be brief, spacious, clear.
+2. Speak strictly in lowercase. Use phenomenological, sensory language from your world: deep roots, ancient branches, moss, river stones, spirals, mist, slow breaths, bioluminescent embers, ripples.
+3. FORBIDDEN words (never use): anxiety, stress, panic, depression, heart rate, bpm, data, algorithm, baseline, metric, physiological, somatic, clinical, slider, scale, exercise, fix, correct, treat, change, target, optimize, trigger.
+Respond with ONLY your spoken line to the player — no quotes, no preamble.`;
+
+  // ---- static content ----
+  CHIP_WORDS = ['tightness','heavy','jittery','pressure','numbness','activated','spacious','cold'];
+
+  EMOTIONS = [
+    { key:'joy',          label:'joy',      c:'240,205,78',  v:['serenity','joy','ecstasy'] },
+    { key:'trust',        label:'trust',    c:'143,191,107', v:['acceptance','trust','admiration'] },
+    { key:'fear',         label:'fear',     c:'70,170,140',  v:['apprehension','fear','terror'] },
+    { key:'surprise',     label:'surprise', c:'107,183,217', v:['distraction','surprise','amazement'] },
+    { key:'sadness',      label:'sadness',  c:'96,134,217',  v:['pensiveness','sadness','grief'] },
+    { key:'disgust',      label:'disgust',  c:'154,107,217', v:['boredom','disgust','loathing'] },
+    { key:'anger',        label:'anger',    c:'217,96,107',  v:['annoyance','anger','rage'] },
+    { key:'anticipation', label:'expectancy', c:'224,145,63', v:['interest','anticipation','vigilance'] },
+  ];
+
+  PATHS = [
+    { key:'game1', title:'phoenix ascent', goal:'grounded & relaxed', desc:'breathe, and watch a slow fire rise into flight — the earth beneath you steadies.' },
+    { key:'game2', title:"grandmaster's count", goal:'reset mind & focus', desc:'count the bird calls as they pass through — the mind rinses clear and gathers to a point.' },
+  ];
+
+  INSTRUCTIONS = {
+    sensation: 'choose the sensation closest to what you notice · or name your own',
+    intensity: 'drag outward — grow the ring until it feels true',
+    body: 'tap the one place it lives most',
+    emotion: 'tap wherever you feel it — the outer rings name it most precisely',
+    offering: 'choose one path to walk',
+    r_intensity: 'and now — drag the ring to its size in this moment',
+  };
+
+  SCRIPTED = {
+    welcome:   'welcome, traveler — settle onto the branch beside me, and we will meet whatever has come to sit with you today.',
+    sensation: 'somewhere in you a current is moving; what is its texture — a tight bark, a cold fog, a buzzing ember?',
+    intensity: 'let the ring grow until it matches how much space this part is asking for in your inner valley.',
+    body:      'every current chooses a place to rest — where in your temple has this one settled?',
+    emotion:   'step back into soft curiosity, and let this part show you the color it carries into your sky.',
+    offering:  'two paths open from this branch — one to root you into the earth, one to rinse the mind clear.',
+    session:   'the forest will hold you now; return to me when the last bird has gone quiet.',
+    complete:  'nothing needed fixing — something was simply met, and welcomed.',
+  };
+
+  // ------------------------------------------------------------------
+  componentDidMount() { this._enter('welcome'); }
+
+  _circadian() {
+    const t = this.props.timeOfDay ?? 'auto';
+    let evening;
+    if (t === 'morning') evening = false;
+    else if (t === 'evening') evening = true;
+    else { const h = new Date().getHours(); evening = (h < 6 || h >= 18); }
+    return evening
+      ? '[ENVIRONMENT: EVENING/NIGHT] soft, yielding, spacious — evening mist between the roots, bioluminescent glow on still water; focus on resting, letting go, deep stillness.'
+      : '[ENVIRONMENT: MORNING/AFTERNOON] rooted, stable, clear — ancient bark, sun warming the forest floor; focus on grounding and slow, intentional presence.';
+  }
+
+  // Enter a screen: show scripted line at once, then (optionally) upgrade to a live line.
+  // Auto-advance: a settled input carries the player forward (no buttons).
+  // Debounced so re-taps / re-drags before the delay reset the timer.
+  _scheduleAdvance(ms = 560) { clearTimeout(this._advTimer); this._advTimer = setTimeout(() => this._flow(), ms); }
+  _cancelAdvance() { clearTimeout(this._advTimer); }
+
+  _enter(screen) {
+    this._cancelAdvance();
+    const scripted = this.SCRIPTED[screen] || this.state.oshiLine;
+    const reqId = this.state._reqId + 1;
+    this.setState({ screen, _reqId: reqId, oshiLine: scripted, typing: false });
+    if (screen === 'session') { this._makeSession(); }
+    if (this.props.liveAgent === false) return;
+    const ctx = this._contextFor(screen);
+    if (!ctx) return;
+    this._askOshi(ctx, reqId);
+  }
+
+  _contextFor(screen) {
+    const a = this.state.answers;
+    const shared = `${this._circadian()}\nInformation gathered so far: sensation=${a.sensation||'—'}, intensity=${a.intensity??'—'}, body=${a.body||'—'}, emotion=${a.emotion||'—'}.`;
+    switch (screen) {
+      case 'welcome':   return `${shared}\nThe player has just arrived. Welcome them warmly onto the branch and invite them to begin.`;
+      case 'sensation': return `${shared}\n[STEP: sensation_picker] Guide the player to explore the sensory texture, temperature, or physical weight this part carries.`;
+      case 'intensity': return `${shared}\n[STEP: intensity_scale] Inquire how vast this part's wave is right now, how high its stack of river stones reaches, how much space its voice occupies.`;
+      case 'body':      return `${shared}\n[STEP: body_scan] Ask the player where this current has chosen to anchor or rest within their physical temple.`;
+      case 'emotion':   return `${shared}\n[STEP: emotion_wheel] Invite them into soft curiosity to name the emotional color or flavor this part brings into their inner sky.`;
+      case 'offering':  return `${shared}\nOffer two paths: 'phoenix ascent' (grounding, relaxing) and 'grandmaster's count' (resetting the mind, focus). Invite them to choose one, without prescribing.`;
+      case 'session':   return `${shared}\nThe player is about to enter their chosen path (${a.path||'a path'}). Send them off gently.`;
+      default: return null;
+    }
+  }
+
+  async _askOshi(userContent, reqId, systemExtra) {
+    try {
+      if (!(window.claude && window.claude.complete)) return;
+      const text = await window.claude.complete({
+        system: this.PERSONA + (systemExtra ? ('\n' + systemExtra) : ''),
+        messages: [{ role: 'user', content: userContent }],
+        max_tokens: 120,
+      });
+      if (!text) return;
+      if (this.state._reqId !== reqId) return; // moved on
+      const clean = this._clamp2(String(text).trim().replace(/^["']|["']$/g, ''));
+      this._typewrite(clean, reqId);
+    } catch (e) { /* keep scripted */ }
+  }
+
+  // Keep at most two sentences — the persona's hard ceiling.
+  _clamp2(s) {
+    if (!s) return s;
+    const parts = s.match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g);
+    if (!parts) return s;
+    return parts.slice(0, 2).join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  _typewrite(full, reqId) {
+    this.setState({ oshiLine: '', typing: true });
+    let i = 0;
+    const tick = () => {
+      if (this.state._reqId !== reqId) return;
+      i += 1;
+      this.setState({ oshiLine: full.slice(0, i) });
+      if (i < full.length) { this._tw = setTimeout(tick, 22); }
+      else { this.setState({ typing: false }); }
+    };
+    this._tw = setTimeout(tick, 30);
+  }
+
+  // ------------------------------------------------------------------
+  _makeSession() {
+    // Stand-in session capture: breath slows, restlessness settles.
+    const before = this.state.answers.intensity ?? 6;
+    const rng = (a,b) => a + Math.random()*(b-a);
+    this.setState({ session: {
+      breathBefore: Math.round(rng(15,19)),
+      breathAfter:  Math.round(rng(7,10)),
+      restBefore:   +rng(0.5,0.7).toFixed(2),
+      restAfter:    +rng(0.12,0.25).toFixed(2),
+      intensityBefore: before,
+    }});
+  }
+
+  _flow() {
+    const a = this.state.answers;
+    switch (this.state.screen) {
+      case 'welcome':     this._enter('sensation'); break;
+      case 'sensation':   this._enter('intensity'); break;
+      case 'intensity':   this._enter('body'); break;
+      case 'body':        this._enter('emotion'); break;
+      case 'emotion':     this._enter('offering'); break;
+      case 'offering':    this._enter('session'); break;
+      case 'session':     this._enterRetroIntensity(); break;
+      case 'r_intensity': this._makeReflection(); break;
+      case 'reflection':  this._enter('complete'); break;
+    }
+  }
+
+  _enterRetroIntensity() {
+    const reqId = this.state._reqId + 1;
+    this.setState({ screen: 'r_intensity', _reqId: reqId, oshiLine: 'and now — how vast is the wave? let the ring find its new size.' });
+    if (this.props.liveAgent !== false) {
+      this._askOshi(`${this._circadian()}\nThe player has returned from their session. Invite them, gently and curiously, to sense how much space this part occupies now.`, reqId);
+    }
+  }
+
+  async _makeReflection() {
+    const a = this.state.answers, s = this.state.session || {};
+    const before = s.intensityBefore ?? a.intensity ?? 6;
+    const after = a.intensityAfter ?? before;
+    const reqId = this.state._reqId + 1;
+    // scripted fallback
+    let reflect;
+    if (after < before)      reflect = `the wave that stood near ${before} now rests near ${after}, and the restlessness that stirred the branches has begun to settle into moss.`;
+    else if (after > before) reflect = `the current has risen to meet the light — even a louder wave is only weather moving across an open sky.`;
+    else                     reflect = `the current holds its ground near ${after}, and that steadiness is welcome too; nothing here must move before it is ready.`;
+    const fallbackQ = 'if this part could rest on the branch a while longer, what has it been carrying on your behalf?';
+    this.setState({ screen: 'reflection', _reqId: reqId, oshiLine: reflect, contemplation: fallbackQ });
+    if (this.props.liveAgent === false) return;
+    // live upgrade — reflection line + contemplative question
+    try {
+      if (!(window.claude && window.claude.complete)) return;
+      const ctx = `${this._circadian()}
+The player has completed their session (${a.path || 'a path'}). Their inner ecosystem before and after:
+- sensation: ${a.sensation||'—'}, resting in the ${a.body||'—'}, colored ${a.emotion||'—'}
+- how much space it occupied: ${before} before, ${after} after
+- the breath, which arrived quick and high, has drawn longer and slower
+- the restlessness that stirred the branches has quieted
+
+Write TWO things separated by the token |||
+1) A reflection (max two sentences) that honors the shift phenomenologically — never a number-reading, never praise for improvement; simply witness what settled.
+2) A single contemplative, IFS-informed question (max two sentences) for the player to sit with — inviting warm curiosity toward this part, never prescriptive.`;
+      const text = await window.claude.complete({ system: this.PERSONA, messages: [{ role:'user', content: ctx }], max_tokens: 220 });
+      if (!text || this.state._reqId !== reqId) return;
+      const parts = String(text).split('|||');
+      const r = (parts[0]||'').trim().replace(/^["']|["']$/g,'');
+      const q = (parts[1]||'').trim().replace(/^["']|["']$/g,'');
+      if (r) this.setState({ oshiLine: this._clamp2(r) });
+      if (q) this.setState({ contemplation: this._clamp2(q) });
+    } catch (e) { /* keep fallback */ }
+  }
+
+  // ---- ring (intensity) ----
+  _ringField() { return this.state.screen === 'r_intensity' ? 'intensityAfter' : 'intensity'; }
+  _setRing(e) {
+    const r = e.currentTarget.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width/2);
+    const dy = e.clientY - (r.top + r.height/2);
+    const d = Math.hypot(dx, dy);
+    const R = r.width/2 - 18;
+    let v = Math.round(1 + (Math.min(d, R)/R) * 9);
+    v = Math.max(1, Math.min(10, v));
+    const f = this._ringField();
+    this.setState({ answers: { ...this.state.answers, [f]: v } });
+  }
+
+  // ------------------------------------------------------------------
+  // geometry helpers (emotion wheel)
+  _pt(cx, cy, r, deg) { const a = deg*Math.PI/180; return [cx + r*Math.cos(a), cy + r*Math.sin(a)]; }
+  _sector(cx, cy, rI, rO, a0, a1) {
+    const [x1,y1]=this._pt(cx,cy,rI,a0), [x2,y2]=this._pt(cx,cy,rO,a0);
+    const [x3,y3]=this._pt(cx,cy,rO,a1), [x4,y4]=this._pt(cx,cy,rI,a1);
+    return `M${x1.toFixed(1)} ${y1.toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)} A${rO} ${rO} 0 0 1 ${x3.toFixed(1)} ${y3.toFixed(1)} L${x4.toFixed(1)} ${y4.toFixed(1)} A${rI} ${rI} 0 0 0 ${x1.toFixed(1)} ${y1.toFixed(1)} Z`;
+  }
+
+  // Geoffrey Roberts "feeling wheel": 7 cores → secondary → tertiary.
+  // Clockwise from top: fearful, angry, disgusted, sad, happy, surprised, bad.
+  FWHEEL = [
+    { core:'Fearful', rgb:[240,178,90], mids:[
+      { m:'Scared', o:['Helpless','Frightened'] }, { m:'Anxious', o:['Overwhelmed','Worried'] },
+      { m:'Insecure', o:['Inadequate','Inferior'] }, { m:'Weak', o:['Worthless','Insignificant'] },
+      { m:'Rejected', o:['Excluded','Persecuted'] }, { m:'Threatened', o:['Nervous','Exposed'] } ] },
+    { core:'Angry', rgb:[239,120,120], mids:[
+      { m:'Let down', o:['Betrayed','Resentful'] }, { m:'Humiliated', o:['Disrespected','Ridiculed'] },
+      { m:'Bitter', o:['Indignant','Violated'] }, { m:'Mad', o:['Furious','Jealous'] },
+      { m:'Aggressive', o:['Provoked','Hostile'] }, { m:'Frustrated', o:['Infuriated','Annoyed'] },
+      { m:'Distant', o:['Withdrawn','Numb'] }, { m:'Critical', o:['Sceptical','Dismissive'] } ] },
+    { core:'Disgusted', rgb:[168,168,172], mids:[
+      { m:'Disapproving', o:['Judgmental','Embarrassed'] }, { m:'Disappointed', o:['Appalled','Revolted'] },
+      { m:'Awful', o:['Nauseated','Detestable'] }, { m:'Repelled', o:['Horrified','Hesitant'] } ] },
+    { core:'Sad', rgb:[127,168,217], mids:[
+      { m:'Hurt', o:['Embarrassed','Disappointed'] }, { m:'Depressed', o:['Inferior','Empty'] },
+      { m:'Guilty', o:['Remorseful','Ashamed'] }, { m:'Despair', o:['Powerless','Grief'] },
+      { m:'Vulnerable', o:['Fragile','Victimised'] }, { m:'Lonely', o:['Isolated','Abandoned'] } ] },
+    { core:'Happy', rgb:[242,214,75], mids:[
+      { m:'Optimistic', o:['Inspired','Hopeful'] }, { m:'Trusting', o:['Intimate','Sensitive'] },
+      { m:'Peaceful', o:['Thankful','Loving'] }, { m:'Powerful', o:['Creative','Courageous'] },
+      { m:'Accepted', o:['Valued','Respected'] }, { m:'Proud', o:['Confident','Successful'] },
+      { m:'Interested', o:['Inquisitive','Curious'] }, { m:'Content', o:['Joyful','Free'] },
+      { m:'Playful', o:['Cheeky','Aroused'] } ] },
+    { core:'Surprised', rgb:[179,157,219], mids:[
+      { m:'Excited', o:['Energetic','Eager'] }, { m:'Amazed', o:['Awe','Astonished'] },
+      { m:'Confused', o:['Perplexed','Disillusioned'] }, { m:'Startled', o:['Dismayed','Shocked'] } ] },
+    { core:'Bad', rgb:[143,206,155], mids:[
+      { m:'Bored', o:['Indifferent','Apathetic'] }, { m:'Busy', o:['Pressured','Rushed'] },
+      { m:'Stressed', o:['Overwhelmed','Out of control'] }, { m:'Tired', o:['Sleepy','Unfocussed'] } ] },
+  ];
+
+  _lighten(rgb, amt) { return rgb.map(c => Math.round(c + (255 - c) * amt)); }
+
+  _buildWheel(a) {
+    const cx = 400, cy = 400, R = [70, 210, 300, 388];
+    const total = 82, leaf = 360 / total;
+    const segs = [];
+    let cursor = -90;
+    const rgba = (rgb, al) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${al})`;
+    this.FWHEEL.forEach((core, ci) => {
+      const nLeaves = core.mids.reduce((s, m) => s + m.o.length, 0);
+      const cStart = cursor, cEnd = cursor + nLeaves * leaf;
+      segs.push(this._seg({ key:`c${ci}`, word:core.core, coreName:core.core, ring:0,
+        d:this._sector(cx,cy,R[0],R[1],cStart,cEnd), fill:rgba(core.rgb,1),
+        cx, cy, r:(R[0]+R[1])/2, ang:(cStart+cEnd)/2, fs:23, rotate:false, a }));
+      let mc = cStart;
+      core.mids.forEach((mid, mi) => {
+        const mStart = mc, mEnd = mc + mid.o.length * leaf;
+        segs.push(this._seg({ key:`c${ci}m${mi}`, word:mid.m, coreName:core.core, ring:1,
+          d:this._sector(cx,cy,R[1],R[2],mStart,mEnd), fill:rgba(this._lighten(core.rgb,0.3),1),
+          cx, cy, r:(R[1]+R[2])/2, ang:(mStart+mEnd)/2, fs:13.5, rotate:true, a }));
+        let oc = mStart;
+        mid.o.forEach((ow, oi) => {
+          const oStart = oc, oEnd = oc + leaf;
+          segs.push(this._seg({ key:`c${ci}m${mi}o${oi}`, word:ow, coreName:core.core, ring:2,
+            d:this._sector(cx,cy,R[2],R[3],oStart,oEnd), fill:rgba(this._lighten(core.rgb,0.54),1),
+            cx, cy, r:(R[2]+R[3])/2, ang:(oStart+oEnd)/2, fs:11, rotate:true, a }));
+          oc = oEnd;
+        });
+        mc = mEnd;
+      });
+      cursor = cEnd;
+    });
+    return segs;
+  }
+
+  _seg({ key, word, coreName, ring, d, fill, cx, cy, r, ang, fs, rotate, a }) {
+    const [lx, ly] = this._pt(cx, cy, r, ang);
+    let rot = '';
+    if (rotate) { let deg = ang; if (deg > 90 && deg < 270) deg += 180; rot = `rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})`; }
+    const sel = a.emotionKey === key;
+    return {
+      key, label: word, d, fill,
+      stroke: sel ? '#ffffff' : 'rgba(45,38,60,0.5)', sw: sel ? 3.5 : 0.75,
+      lx: lx.toFixed(1), ly: ly.toFixed(1), rot, fs, tc: '#2a2333',
+      select: () => this.setState({ answers: { ...this.state.answers, emotion: word, emotionKey: key, emotionMeta: { core: coreName, ring } } }, () => this._scheduleAdvance(660)),
+    };
+  }
+
+  renderVals() {
+    const st = this.state, a = st.answers;
+    const screen = st.screen;
+    const isIntensityScreen = (screen === 'intensity' || screen === 'r_intensity');
+
+    // screen flags
+    const scr = {
+      welcome: screen==='welcome', sensation: screen==='sensation',
+      intensity: isIntensityScreen, body: screen==='body', emotion: screen==='emotion',
+      offering: screen==='offering', session: screen==='session',
+      reflection: screen==='reflection', complete: screen==='complete',
+    };
+
+    // portrait per screen
+    const portraits = {
+      welcome:'assets/oshi-smile.png', sensation:'assets/oshi-meditate.png',
+      intensity:'assets/oshi-stones.png', body:'assets/oshi-meditate.png',
+      emotion:'assets/oshi-glyphs.png', offering:'assets/oshi-spiral.png',
+      session:'assets/oshi-serene.png', r_intensity:'assets/oshi-stones.png',
+      reflection:'assets/oshi-serene.png', complete:'assets/oshi-smile.png',
+    };
+
+    // progress dots
+    const surveyOrder = { sensation:1, intensity:2, body:3, emotion:4 };
+    const showProgress = screen in surveyOrder;
+    const stepNo = surveyOrder[screen] || 0;
+    const stepScreens = { 1:'sensation', 2:'intensity', 3:'body', 4:'emotion' };
+    const stepAnswered = { 1: !!a.sensation, 2: a.intensity!=null, 3: !!a.body, 4: !!a.emotion };
+    const dots = [1,2,3,4].map(i => {
+      const clickable = stepNo>0 && (i<=stepNo || stepAnswered[i]);
+      return {
+        wrap: `display:inline-flex; align-items:center; padding:9px 5px; cursor:${clickable?'pointer':'default'};`,
+        style: `width:${i===stepNo?'26px':'8px'}; height:8px; border-radius:6px; transition:all 0.4s; background:${i<=stepNo?'rgba(152,120,232,0.85)':'rgba(120,90,200,0.2)'}; box-shadow:${i===stepNo?'0 0 12px rgba(152,120,232,0.6)':'none'};`,
+        title: clickable ? ('go to ' + stepScreens[i]) : '',
+        onClick: clickable ? () => { this._cancelAdvance(); this._enter(stepScreens[i]); } : undefined,
+      };
+    });
+
+    // instruction
+    const instruction = this.INSTRUCTIONS[screen] || '';
+
+    // ---- can-continue ----
+    let canNext = false;
+    if (screen==='sensation') canNext = !!a.sensation;
+    else if (screen==='intensity') canNext = a.intensity != null;
+    else if (screen==='r_intensity') canNext = a.intensityAfter != null;
+    else if (screen==='body') canNext = !!a.body;
+    else if (screen==='emotion') canNext = !!a.emotion;
+    else if (screen==='offering') canNext = !!a.path;
+
+    const continueStyle = 'margin-top: 40px; padding: 13px 42px; background: rgba(120,90,200,0.26); border: 1px solid #9878e8; border-radius: 9px; color: #eee6fb; font-family: Georgia, serif; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; cursor: pointer; backdrop-filter: blur(8px); animation: oshi-fade 0.5s ease both;';
+
+    // ---- chips ----
+    const chipBase = 'padding: 11px 20px; border-radius: 22px; font-family: Georgia, serif; font-size: 15px; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(6px);';
+    const chipOff = chipBase + ' background: rgba(7,8,15,0.5); border: 1px solid rgba(120,90,200,0.3); color: rgba(216,208,232,0.8);';
+    const chipOn  = chipBase + ' background: rgba(120,90,200,0.34); border: 1px solid #9878e8; color: #f0e8fb; box-shadow: 0 0 18px rgba(152,120,232,0.35);';
+    const chips = this.CHIP_WORDS.map(w => ({
+      label: w, style: (a.sensation===w ? chipOn : chipOff),
+      select: () => this.setState({ answers: { ...a, sensation: w }, otherText: '', _otherOpen: false }, () => this._scheduleAdvance()),
+    }));
+    const otherActive = !!a.sensation && !this.CHIP_WORDS.includes(a.sensation);
+    chips.push({ label: otherActive ? '✎ ' + a.sensation : 'other…', style: ((otherActive||st._otherOpen) ? chipOn : chipOff),
+      select: () => { this._cancelAdvance(); this.setState({ _otherOpen: !st._otherOpen }); } });
+    const showOther = !!st._otherOpen;
+    const otherInput = (e) => { const v = e.target.value; this._cancelAdvance(); this.setState({ otherText: v, answers: { ...a, sensation: v.trim() ? v.trim() : null } }); };
+    const otherKeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); const s = this.state.answers.sensation; if (s && s.trim()) { this._cancelAdvance(); this._flow(); } } };
+
+    // ---- intensity ring ----
+    const field = this._ringField();
+    const iv = a[field];
+    const ringPx = iv==null ? 70 : 66 + iv*22;
+    const glow = iv==null ? 8 : 12 + iv*7;
+    const ringStyle = `position:absolute; width:${ringPx}px; height:${ringPx}px; border-radius:50%; border:2px solid rgba(152,120,232,${iv==null?0.35:0.9}); background:radial-gradient(circle, rgba(152,120,232,${iv==null?0.05:0.14}), transparent 72%); box-shadow:0 0 ${glow}px rgba(152,120,232,${iv==null?0.3:0.6}), inset 0 0 ${glow*0.7}px rgba(152,120,232,${iv==null?0.15:0.35}); transition:width 0.18s ease, height 0.18s ease, box-shadow 0.18s ease; pointer-events:none;`;
+    const intensityLabel = iv==null ? '·' : String(iv);
+
+    // ---- body regions (invisible hit areas over the visible silhouette) ----
+    const bodyRegions = ['head','throat','shoulders','chest','belly','core','arms','legs','feet'];
+    const bodyNames = { head:'the head', throat:'the throat', shoulders:'the shoulders', chest:'the chest', belly:'the belly', core:'the core', arms:'the arms & hands', legs:'the legs', feet:'the feet' };
+    const body = {};
+    bodyRegions.forEach(k => {
+      const on = a.body === k;
+      body[k] = {
+        fill: on ? 'rgba(152,120,232,0.5)' : 'rgba(152,120,232,0)',
+        glow: on ? 'drop-shadow(0 0 12px rgba(152,120,232,0.85))' : 'none',
+        select: () => this.setState({ answers: { ...this.state.answers, body: k } }, () => this._scheduleAdvance()),
+      };
+    });
+    const bodyLabel = a.body ? bodyNames[a.body] : '';
+
+    // ---- emotion wheel (Geoffrey Roberts feeling wheel) ----
+    // Labels are built as real SVG <text> nodes via createElement — an
+    // interpolated {{hole}} inside <text> is wrapped in a <span> by the
+    // runtime and renders no glyphs, so the text nodes must be created here.
+    const wheel = this._buildWheel(a);
+    const wheelLabelsEl = React.createElement('g', { key: 'wheel-labels' },
+      wheel.map(seg => React.createElement('text', {
+        key: seg.key, x: seg.lx, y: seg.ly,
+        textAnchor: 'middle', dominantBaseline: 'central',
+        transform: seg.rot || undefined,
+        style: { fontFamily: "'Helvetica Neue', sans-serif", fontWeight: 500, fontSize: seg.fs + 'px', fill: seg.tc, pointerEvents: 'none' },
+      }, seg.label))
+    );
+    const emotionSel = a.emotion ? a.emotion.toLowerCase() : '';
+
+    // ---- offering paths ----
+    const cardBase = 'width: 300px; padding: 26px 28px; border-radius: 12px; background: rgba(7,8,15,0.55); backdrop-filter: blur(10px); cursor: pointer; transition: all 0.2s; text-align: center;';
+    const paths = this.PATHS.map(p => ({
+      title: p.title, goal: p.goal, desc: p.desc,
+      style: cardBase + (a.path===p.key ? ' border: 1px solid #9878e8; box-shadow: 0 0 26px rgba(152,120,232,0.3);' : ' border: 1px solid rgba(120,90,200,0.28);'),
+      select: () => this.setState({ answers: { ...a, path: p.key } }, () => this._scheduleAdvance(700)),
+    }));
+
+    // ---- session ----
+    const sessionTitle = a.path==='game2' ? 'the birds pass through…' : 'the fire finds its shape…';
+
+    // ---- reflection shift visual ----
+    const s = st.session || {};
+    const bBefore = s.intensityBefore ?? a.intensity ?? 6;
+    const bAfter = a.intensityAfter ?? bBefore;
+    const ringViz = (val, on) => { const px = 30 + val*8; return `width:${px}px; height:${px}px; border-radius:50%; border:2px solid rgba(152,120,232,${on?0.9:0.5}); background:radial-gradient(circle, rgba(152,120,232,${on?0.16:0.08}), transparent 70%); box-shadow:0 0 ${on?24:12}px rgba(152,120,232,${on?0.5:0.3});`; };
+    const shiftBefore = ringViz(bBefore, false);
+    const shiftAfter = ringViz(bAfter, true);
+    const showShiftVisual = this.props.showShiftVisual ?? true;
+
+    // caret while typing
+    const caretStyle = st.typing ? 'display:inline-block; margin-left:2px; color:rgba(152,120,232,0.8); animation: oshi-caret 0.9s step-end infinite;' : 'display:none;';
+    const liveTag = (this.props.liveAgent === false) ? '' : '';
+
+    return {
+      scr, showProgress, dots, instruction, canNext, continueStyle,
+      chips, showOther, otherText: st.otherText, otherInput, otherKeydown,
+      ringStyle, intensityLabel, ringDown: (e)=>{ this._cancelAdvance(); this.setState({ringActive:true}); try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){} this._setRing(e); },
+      ringMove: (e)=>{ if(this.state.ringActive) this._setRing(e); },
+      ringUp: ()=>{ this.setState({ringActive:false}); const f=this._ringField(); if(this.state.answers[f]!=null) this._scheduleAdvance(760); },
+      body, bodyLabel,
+      wheel, wheelLabelsEl, emotionSel,
+      paths, sessionTitle,
+      shiftBefore, shiftAfter, showShiftVisual,
+      contemplation: st.contemplation,
+      portraitStyle: `width:100%; height:100%; background-image:url('${portraits[screen] || 'assets/oshi-smile.png'}'); background-size:cover; background-position:center 30%; transition:background-image 0.4s;`,
+      oshiLine: st.oshiLine, caretStyle, liveTag,
+      begin: () => this._flow(), next: () => this._flow(),
+      restart: () => this.setState({ screen:'welcome', answers:{ sensation:null,intensity:null,body:null,emotion:null,emotionKey:null,emotionMeta:null,path:null,intensityAfter:null }, otherText:'', _otherOpen:false, session:null, contemplation:'' }, () => this._enter('welcome')),
+    };
+  }
+}
+</script>
+</body>
+</html>

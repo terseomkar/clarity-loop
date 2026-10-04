@@ -30,12 +30,14 @@ class ClarityCamera {
    * @param {boolean}  [opts.drawLandmarks=false]  Overlay pose landmarks instead of ROI boxes.
    * @param {function} [opts.onChestSample]        Called per capture frame with raw chest luminance.
    * @param {function} [opts.onPoseSample]         Called per pose update with (landmarksObj, motionMagnitude).
+   * @param {function} [opts.onFaceSample]         Called per face update with the full Face Mesh landmark array.
    */
   constructor(onSignalUpdate, opts = {}) {
     this._onSignalUpdate = onSignalUpdate;
     this._drawLandmarks  = !!opts.drawLandmarks;
     this._onChestSample  = opts.onChestSample || null;
     this._onPoseSample   = opts.onPoseSample  || null;
+    this._onFaceSample   = opts.onFaceSample  || null;
 
     this._video  = null;
     this._canvas = document.createElement('canvas');
@@ -154,6 +156,10 @@ class ClarityCamera {
       if (lms) {
         this._faceDetected = true;
         this._updateRoisFromLandmarks(lms);
+        // Forward the full landmark array to interested callers (Game 4 pins
+        // its tapping-point markers off these).  ROI extraction above is
+        // unaffected — this is a read-only fan-out of the same detection.
+        if (this._onFaceSample) this._onFaceSample(lms);
       } else {
         this._faceDetected = false;
         this._roi      = { ...this._centerCropRoi };

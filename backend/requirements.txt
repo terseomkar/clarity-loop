@@ -20,4 +20,4 @@ python-dotenv>=1.0.0
 # mediapipe>=0.10.9                # pose/face mesh landmarks
 
 # --- Week 5 additions ---
-# anthropic>=0.21.0                # Claude Haiku orchestrator
+anthropic>=0.21.0                # Claude Haiku orchestrator + Oshi narrator

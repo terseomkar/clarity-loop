@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clarity Loop — Game 4</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body class="mirror-body g4-body">
+
+<!-- Soft violet vignette behind every screen -->
+<div class="g4-bg"></div>
+
+<nav class="mode-nav mirror-nav">
+  <a href="/survey" class="mode-link">Survey</a>
+  <a href="/" class="mode-link">Sensing</a>
+  <a href="/observe" class="mode-link">Observation</a>
+  <a href="/mirror" class="mode-link">Mirror</a>
+  <a href="/game1" class="mode-link">Game 1</a>
+  <a href="/game2" class="mode-link">Game 2</a>
+  <a href="/game3" class="mode-link">Game 3</a>
+  <a href="/game4" class="mode-link active">Game 4</a>
+</nav>
+
+<!-- =========================================================
+     SETUP — survey feeling + sequence + cycle/interval pickers
+     ========================================================= -->
+<div id="g4-setup" class="g4-screen g4-setup">
+  <div class="g4-title">tap the tide</div>
+  <div class="g4-subtitle">tap through six points while you speak the feeling aloud. it doesn't need to leave all at once — just let it move.</div>
+
+  <div class="g4-carry-card">
+    <div class="g4-carry-label">carried from your survey</div>
+    <div class="g4-carry-sub">you're working with</div>
+    <div class="g4-setup-emotion g4-emotion">this feeling</div>
+  </div>
+
+  <div class="g4-seq-label">the sequence</div>
+  <div class="g4-seq-row">
+    <span class="g4-seq-chip">1 · Top of Head</span>
+    <span class="g4-seq-chip">2 · Eyebrow</span>
+    <span class="g4-seq-chip">3 · Under Eye</span>
+    <span class="g4-seq-chip">4 · Chin</span>
+    <span class="g4-seq-chip">5 · Collarbone</span>
+    <span class="g4-seq-chip">6 · Under Arm</span>
+  </div>
+
+  <div class="g4-config-row">
+    <div class="g4-config-group">
+      <div class="g4-config-label">cycles</div>
+      <div class="g4-cycle-row">
+        <button class="g4-cycle-btn" data-cy="1" type="button">1</button>
+        <button class="g4-cycle-btn" data-cy="3" type="button">3</button>
+        <button class="g4-cycle-btn" data-cy="5" type="button">5</button>
+        <input id="g4-cycles-custom" class="g4-cycles-custom" type="number" min="1" max="9" step="1" placeholder="—">
+      </div>
+    </div>
+
+    <div class="g4-config-group">
+      <div class="g4-config-label">seconds at each point</div>
+      <div class="g4-cycle-row">
+        <input id="g4-spp" class="g4-spp-input" type="number" min="4" max="30" step="1" value="11">
+      </div>
+    </div>
+  </div>
+
+  <div class="g4-flow-label" id="g4-flow-label">3 cycles · 11s at each point · about 3 min</div>
+
+  <button id="g4-begin" class="game2-begin-btn" type="button">begin</button>
+  <div class="g4-begin-note">your camera turns on so the points can find you · nothing is recorded</div>
+</div>
+
+<!-- =========================================================
+     COUNTDOWN — 3·2·1
+     ========================================================= -->
+<div id="g4-countdown" class="g4-screen g4-countdown" style="display:none">
+  <div class="game2-countdown-num" id="g4-count">3</div>
+</div>
+
+<!-- =========================================================
+     ACTIVE — mirrored feed + pinned pulsing marker + timer ring
+              + affirmation.  The clock leads; CV only locates.
+     ========================================================= -->
+<div id="g4-active" class="g4-screen g4-active" style="display:none">
+
+  <div class="g4-frame">
+    <!-- Visible mirrored feed.  This is the SAME #camera-feed element that
+         ClarityCamera drives — one MediaPipe pipeline serves both the
+         detection and the display. -->
+    <video id="camera-feed" class="g4-feed" playsinline muted autoplay></video>
+
+    <!-- camera-off / no-detection placeholder -->
+    <div id="g4-placeholder" class="g4-placeholder">
+      <div class="g4-placeholder-orb"></div>
+      <div class="g4-placeholder-line">enable your camera to see yourself</div>
+      <div class="g4-placeholder-sub">the guide points are shown below as a preview</div>
+    </div>
+
+    <!-- landmark overlay — markers pinned to each tapping point -->
+    <div id="g4-overlay" class="g4-overlay">
+      <div class="g4-marker" data-pt="crown">
+        <div class="g4-radar" data-role="radar"></div>
+        <div class="g4-radar" data-role="radar2"></div>
+        <div class="g4-core" data-role="core"></div>
+      </div>
+      <div class="g4-marker" data-pt="brow">
+        <div class="g4-radar" data-role="radar"></div>
+        <div class="g4-radar" data-role="radar2"></div>
+        <div class="g4-core" data-role="core"></div>
+      </div>
+      <div class="g4-marker" data-pt="eye">
+        <div class="g4-radar" data-role="radar"></div>
+        <div class="g4-radar" data-role="radar2"></div>
+        <div class="g4-core" data-role="core"></div>
+      </div>
+      <div class="g4-marker" data-pt="chin">
+        <div class="g4-radar" data-role="radar"></div>
+        <div class="g4-radar" data-role="radar2"></div>
+        <div class="g4-core" data-role="core"></div>
+      </div>
+      <div class="g4-marker" data-pt="collar">
+        <div class="g4-radar" data-role="radar"></div>
+        <div class="g4-radar" data-role="radar2"></div>
+        <div class="g4-core" data-role="core"></div>
+      </div>
+      <div class="g4-marker" data-pt="arm">
+        <div class="g4-radar" data-role="radar"></div>
+        <div class="g4-radar" data-role="radar2"></div>
+        <div class="g4-core" data-role="core"></div>
+      </div>
+    </div>
+
+    <!-- cycle badge -->
+    <div class="g4-cycle-badge" id="g4-cycle">Cycle 1 of 3</div>
+
+    <!-- timer ring -->
+    <div class="g4-ring" id="g4-ring">
+      <div class="g4-ring-inner">
+        <div class="g4-sec" id="g4-sec">11</div>
+        <div class="g4-sec-unit">sec</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- guidance below the feed -->
+  <div class="g4-guide">
+    <div class="g4-point-counter" id="g4-point-counter">Point 1 of 6 · tap gently, steadily</div>
+    <div class="g4-point-name" id="g4-point-name">Top of Head</div>
+    <div class="g4-point-note" id="g4-point-note">tap the crown with two fingers</div>
+
+    <div class="g4-affirm">“I am feeling <span class="g4-emotion">this feeling</span>, and I accept it.”</div>
+
+    <div class="g4-voice">
+      <span class="g4-voice-dot"></span>
+      say it aloud
+    </div>
+  </div>
+
+  <!-- transport — pause/resume + skip to end -->
+  <div class="g4-controls">
+    <button id="g4-pause" class="g4-ctrl-btn" type="button">pause</button>
+    <button id="g4-skip" class="g4-ctrl-btn" type="button">skip to end ▸▸</button>
+  </div>
+
+  <!-- overall progress -->
+  <div class="g4-prog-track">
+    <div class="g4-prog-fill" id="g4-prog"></div>
+  </div>
+</div>
+
+<!-- =========================================================
+     COMPLETE — retrospective → /survey hand-off
+     ========================================================= -->
+<div id="g4-complete" class="g4-screen g4-complete" style="display:none">
+  <div class="game3-capture-card g4-complete-card">
+    <div class="game3-capture-eyebrow">tap the tide</div>
+    <div class="g4-complete-headline" id="g4-complete-headline">three rounds, all the way through</div>
+    <div class="g4-complete-body">notice the feeling now — is it the same size it was, or has the tide pulled back a little?</div>
+    <div class="game3-capture-actions">
+      <button id="g4-again" class="game2-begin-btn" type="button">again</button>
+      <a href="/survey" class="game2-begin-btn">with grandmaster oshi</a>
+    </div>
+  </div>
+</div>
+
+<!-- MediaPipe Face Mesh + Pose — same CDN + versions as the Sensing page -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/camera.js"></script>
+<script src="/static/js/game4.js"></script>
+</body>
+</html>

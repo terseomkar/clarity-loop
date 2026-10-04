@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/stack-overflow-design-system-f1d714aa-ece9-45be-b3f7-54bea202b5a7/tokens/colors.css">
+<link rel="stylesheet" href="_ds/stack-overflow-design-system-f1d714aa-ece9-45be-b3f7-54bea202b5a7/tokens/semantic.css">
+<link rel="stylesheet" href="_ds/stack-overflow-design-system-f1d714aa-ece9-45be-b3f7-54bea202b5a7/tokens/typography.css">
+<link rel="stylesheet" href="_ds/stack-overflow-design-system-f1d714aa-ece9-45be-b3f7-54bea202b5a7/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/stack-overflow-design-system-f1d714aa-ece9-45be-b3f7-54bea202b5a7/tokens/effects.css">
+<link rel="stylesheet" href="_ds/stack-overflow-design-system-f1d714aa-ece9-45be-b3f7-54bea202b5a7/tokens/base.css">
+<link rel="stylesheet" href="_ds/stack-overflow-design-system-f1d714aa-ece9-45be-b3f7-54bea202b5a7/styles.css">
+<style>
+  doc-page:not(:defined){ visibility:hidden; }
+  .pm { font-size:12.5px; line-height:1.55; color:var(--text-body); }
+  .pm h2 { margin-top:22px; font-size:15px; padding-bottom:4px; border-bottom:2px solid var(--border-strong); }
+  .pm table { width:100%; border-collapse:collapse; margin:5px 0 12px; font-size:11.5px; }
+  .pm th { text-align:left; background:var(--surface-sunken); color:var(--text-secondary); font-weight:600; padding:5px 8px; border:1px solid var(--border); }
+  .pm td { padding:5px 8px; border:1px solid var(--border); vertical-align:top; }
+  .pm td code { white-space:nowrap; font-size:11px; }
+  .pm .nm { font-family:var(--ff-mono); white-space:nowrap; color:var(--text-strong); font-weight:600; font-size:11px; }
+  .pm li { margin-bottom:3px; }
+  .pm ul { padding-left:20px; margin:4px 0 10px; }
+</style>
+</helmet>
+
+<x-import component-from-global-scope="doc-page" from="./doc-page.js" size="letter" margin="0.5in" hint-size="100%,100%">
+<div class="pm">
+
+<h1 style="font-size:22px; margin-bottom:2px;">Oshi — Code Index</h1>
+<div style="font-size:12.5px; color:var(--text-secondary); margin-bottom:6px;">A map of what lives where in <code>Oshi Survey &amp; Retrospective.dc.html</code> and where each piece lands in <code>clarity-loop/</code>. The prototype file is the source of truth — Claude Code reads and ports directly from it. Everything below is referenced by <strong>name</strong> (constant / method / element), never by line number, so it stays valid as the file is edited.</div>
+
+<div style="background:var(--info-bg); border:1px solid var(--info-border); border-left:3px solid var(--primary); border-radius:0 5px 5px 0; padding:8px 12px; margin:6px 0 4px; font-size:11.5px; color:var(--info-fg);">
+  <strong>How to use this with Claude Code.</strong> Hand over the prototype <code>.dc.html</code> and the Spec, then point Claude Code at this index. It tells it <em>where</em> each block is (search by the named anchor) and <em>what to do</em> with it: copy verbatim, port templating → DOM, or rewire I/O. No manual copy-paste required.
+</div>
+
+<div style="background:var(--success-bg); border:1px solid var(--success-border); border-left:3px solid var(--green-500, #2f6f44); border-radius:0 5px 5px 0; padding:8px 12px; margin:6px 0 4px; font-size:11.5px; color:var(--success-fg);">
+  <strong>Server-side narration is already built.</strong> The whole Oshi voice layer — persona, per-screen prompt assembly, the <code>|||</code> reflection, guardrails, scripted fallbacks — now lives in the <code>backend/orchestrator/oshi/</code> package (<code>OshiNarrator</code>). Wherever §D/§E below say to build <code>_oshi_line()</code> or move <code>_contextFor</code>/<code>_makeReflection</code> server-side, that is <em>done</em>: wire <code>main.py</code> to <code>OshiNarrator</code> per <code>oshi/README.md</code>. <code>agent.py</code>'s only job stays the intervention selector (<code>_call_haiku</code>).
+</div>
+
+<h2>A · Content constants → oshi_flow.js (copy verbatim)</h2>
+<p style="font-size:11.5px; color:var(--text-secondary); margin:2px 0 4px;">Search the logic class for each <code>const</code>. These are data, not logic — port unchanged.</p>
+<table>
+  <thead><tr><th>Constant</th><th>Holds</th><th>Also used by</th></tr></thead>
+  <tbody>
+    <tr><td class="nm">PERSONA</td><td>Oshi system prompt (lowercase rule, 2-sentence ceiling, forbidden words)</td><td>backend <code>agent.py</code> system prompt</td></tr>
+    <tr><td class="nm">CHIP_WORDS</td><td>sensation chips (8 + other): 4 match rule keys, jittery/heavy aliased</td><td>keys <code>rules.py</code> sensations</td></tr>
+    <tr><td class="nm">EMOTIONS</td><td>legacy 8-core list</td><td>superseded by <code>FWHEEL</code></td></tr>
+    <tr><td class="nm">PATHS</td><td>two offering cards</td><td>→ game1 / game2 hand-off</td></tr>
+    <tr><td class="nm">INSTRUCTIONS</td><td>per-screen labels</td><td>baked into <code>oshi_flow.js</code></td></tr>
+    <tr><td class="nm">SCRIPTED</td><td>instant fallback lines</td><td>Layer-1 voice (§7 of Spec)</td></tr>
+    <tr><td class="nm">FWHEEL</td><td>feeling-wheel data (7 cores → mids → leaves)</td><td>drives <code>_buildWheel</code></td></tr>
+  </tbody>
+</table>
+
+<h2>B · Geometry &amp; render helpers → oshi_flow.js (copy verbatim)</h2>
+<p style="font-size:11.5px; color:var(--text-secondary); margin:2px 0 4px;">Pure math / builders — hand-tuned, no I/O. Copy as-is; only the templating→DOM note below applies.</p>
+<table>
+  <thead><tr><th>Method</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td class="nm">_ringField() / _setRing()</td><td>intensity ring math (shared by intensity &amp; r_intensity)</td></tr>
+    <tr><td class="nm">_pt() / _sector()</td><td>emotion-wheel polar geometry</td></tr>
+    <tr><td class="nm">_lighten() / _buildWheel()</td><td>wheel color + segment builder (from <code>FWHEEL</code>)</td></tr>
+    <tr><td class="nm">_seg()</td><td>one wheel segment + label — <strong>port</strong> <code>createElement</code> → <code>createElementNS</code> for SVG text</td></tr>
+    <tr><td class="nm">_circadian()</td><td>time-of-day tone — pass to <code>agent.py</code> as environment tone</td></tr>
+    <tr><td class="nm">_clamp2()</td><td>≤ 2-sentence clamp — run server-side on every Haiku line</td></tr>
+    <tr><td class="nm">_flow()</td><td>screen order — drives debounced auto-advance</td></tr>
+  </tbody>
+</table>
+
+<h2>C · Markup blocks → survey.html / oshi_flow.js (port templating → DOM)</h2>
+<p style="font-size:11.5px; color:var(--text-secondary); margin:2px 0 4px;">Each screen is an <code>sc-if</code> body in the template. Copy the markup, convert the <code>{{ }}</code> holes / <code>sc-for</code> to plain DOM in a render fn.</p>
+<table>
+  <thead><tr><th>Find (screen / element)</th><th>Target</th><th>Convert to</th></tr></thead>
+  <tbody>
+    <tr><td class="nm">@keyframes block (helmet &lt;style&gt;)</td><td><code>css/main.css</code></td><td>append the 7 keyframes as-is</td></tr>
+    <tr><td class="nm">bg wrapper · embers · vignette</td><td><code>survey.html</code></td><td>static stage markup</td></tr>
+    <tr><td class="nm">progress dots</td><td><code>survey.html</code> + <code>oshi_flow.js</code></td><td>markup + dot builder</td></tr>
+    <tr><td class="nm">welcome</td><td><code>oshi_flow.js</code></td><td>render fn</td></tr>
+    <tr><td class="nm">sensation (chips + other…)</td><td><code>oshi_flow.js</code></td><td>render + click handlers</td></tr>
+    <tr><td class="nm">intensity ring</td><td><code>oshi_flow.js</code></td><td>render + pointer handlers</td></tr>
+    <tr><td class="nm">body &lt;svg&gt; + hit regions</td><td><code>oshi_flow.js</code></td><td>SVG verbatim; fills via JS</td></tr>
+    <tr><td class="nm">emotion wheel &lt;svg&gt;</td><td><code>oshi_flow.js</code></td><td>labels via <code>createElementNS</code></td></tr>
+    <tr><td class="nm">offering cards</td><td><code>oshi_flow.js</code></td><td>render from <code>PATHS</code></td></tr>
+    <tr><td class="nm">reflection + shift visual</td><td><code>oshi_flow.js</code></td><td>render fn</td></tr>
+    <tr><td class="nm">complete</td><td><code>oshi_flow.js</code></td><td>render fn</td></tr>
+    <tr><td class="nm">Oshi portrait + caption</td><td><code>survey.html</code> + <code>oshi_flow.js</code></td><td>markup + line/caret updater</td></tr>
+    <tr><td class="nm">session (stand-in)</td><td>—</td><td><strong>drop</strong> — use real game</td></tr>
+  </tbody>
+</table>
+
+<h2>D · Rewire, don't rewrite (the only real logic changes)</h2>
+<p style="font-size:11.5px; color:var(--text-secondary); margin:2px 0 4px;">Everything in A–C copies over. These four are the only places behavior changes — the reason the Spec exists.</p>
+<table>
+  <thead><tr><th>Find</th><th>Prototype does</th><th>Change to</th></tr></thead>
+  <tbody>
+    <tr><td class="nm">window.claude.complete (per-screen)</td><td>client-side LLM call for the Oshi line</td><td><code>oshi_line</code> WebSocket round-trip to <code>agent.py</code> (Spec §6–7)</td></tr>
+    <tr><td class="nm">_contextFor()</td><td>assembles the client prompt</td><td>becomes the <code>oshi_line</code> user prompt server-side</td></tr>
+    <tr><td class="nm">_makeReflection()</td><td>client call; splits on <code>|||</code>; has fallbacks</td><td><code>reflection</code> round-trip; <strong>keep</strong> the scripted fallbacks</td></tr>
+    <tr><td class="nm">_makeSession()</td><td>fabricates before→after capture</td><td><strong>delete</strong> — real deltas are path-dependent: <code>game1</code> = CV breath/restlessness + intensity; <code>game2</code> = intensity only</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Keep the <code>_reqId</code> guard when you rewire the calls — it drops stale async replies (mirrored as <code>req_id</code> in the protocol).</li>
+  <li><code>_enter()</code> paints the scripted line first, then upgrades — preserve that ordering so the UI never blocks on the API.</li>
+</ul>
+
+<h2>E · Backend orchestrator — existing anchors to wire into (don't recreate)</h2>
+<p style="font-size:11.5px; color:var(--text-secondary); margin:2px 0 4px;">These already exist in <code>backend/orchestrator/</code>. Extend, don't replace. See Spec §6.1 for the full contract.</p>
+<table>
+  <thead><tr><th>Anchor</th><th>File</th><th>Do</th></tr></thead>
+  <tbody>
+    <tr><td class="nm">AgentOrchestrator.recommend()</td><td>agent.py</td><td>fill 7-arg signature from <code>subjective_input</code>; already falls back to rules on 3s timeout</td></tr>
+    <tr><td class="nm">_call_haiku()</td><td>agent.py</td><td><strong>exists (stub)</strong> — intervention selector; return dict must use <code>reasoning</code>, not <code>narration</code>, or <code>**result</code> crashes</td></tr>
+    <tr><td class="nm">OshiNarrator.line()</td><td>orchestrator/oshi/</td><td><strong>done</strong> — per-screen narration lives in the package; call it from <code>main.py</code>, don't hand-write <code>_oshi_line()</code></td></tr>
+    <tr><td class="nm">RuleBasedOrchestrator._select()</td><td>rules.py</td><td>keys on <code>tightness/pressure/buzzing/tingling/numbness/cold</code> + <code>head/throat/chest</code> — feed aliased chips (§4.2)</td></tr>
+    <tr><td class="nm">_reason()</td><td>rules.py</td><td>reuse its lowercase lines as rules-path narration verbatim</td></tr>
+    <tr><td class="nm">OrchestratorResult</td><td>rules.py</td><td>fields <code>intervention_id/params/reasoning/source</code> — use <code>reasoning</code> on the wire too (matches main.py); never <code>narration</code></td></tr>
+    <tr><td class="nm">_last_intervention</td><td>rules.py</td><td>cooldown; persist across the connection</td></tr>
+    <tr><td class="nm">PhysiologicalStateModel</td><td>state/model.py</td><td>source of <code>physio_state</code> + before/after CV deltas (game1 only)</td></tr>
+  </tbody>
+</table>
+
+<div style="background:var(--warning-bg); border:1px solid var(--warning-border); border-left:3px solid var(--brand); border-radius:0 5px 5px 0; padding:8px 12px; margin:8px 0; font-size:11.5px; color:var(--warning-fg);">
+  <strong>Anchor by name, not position.</strong> Once Claude Code starts editing, any line number is stale — so this index deliberately has none. If a name here doesn't resolve, search the prototype for the nearest neighbor in the same section rather than guessing a location.
+</div>
+
+</div>
+</x-import>
+</x-dc>
+</body>
+</html>

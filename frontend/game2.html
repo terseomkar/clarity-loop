@@ -26,11 +26,14 @@
 <div class="oshi-vignette"></div>
 
 <nav class="mode-nav mirror-nav">
+  <a href="/survey" class="mode-link">Survey</a>
   <a href="/" class="mode-link">Sensing</a>
   <a href="/observe" class="mode-link">Observation</a>
   <a href="/mirror" class="mode-link">Mirror</a>
   <a href="/game1" class="mode-link">Game 1</a>
   <a href="/game2" class="mode-link active">Game 2</a>
+  <a href="/game3" class="mode-link">Game 3</a>
+  <a href="/game4" class="mode-link">Game 4</a>
 </nav>
 
 <!-- =========================================================
@@ -81,6 +84,10 @@
      anywhere to log a tap.  Eyes-closed mode: no visible UI at all.
      ========================================================= -->
 <div id="active-screen" class="game2-screen game2-active" style="display:none">
+  <!-- Guidance prompt — during the live session two prompts alternate,
+       each fading in for ~5 s every 25 s (shown in both modes). -->
+  <div id="game2-prompt" class="game2-prompt" aria-live="polite"></div>
+
   <!-- Elapsed / remaining bar at the very bottom.  Minimal so it doesn't
        compete with the visual.  Hidden by CSS in eyes-closed mode. -->
   <div id="active-timebar" class="game2-timebar">
@@ -109,7 +116,12 @@
         <span class="game2-count game2-count-actual" id="reveal-actual">0</span> birds sang
       </div>
       <div class="game2-reveal-framing" id="reveal-framing"></div>
-      <button id="reveal-again-btn" class="game2-begin-btn" type="button">again</button>
+      <div class="game2-reveal-actions">
+        <button id="reveal-again-btn" class="game2-begin-btn" type="button">again</button>
+        <!-- Retrospective hand-off — /survey auto-resumes at
+             r_intensity if a survey was in progress. -->
+        <a id="reveal-oshi-btn" class="game2-begin-btn" href="/survey">with grandmaster oshi</a>
+      </div>
     </div>
   </div>
 </div>
