@@ -1,39 +1,39 @@
 """
-Physiological State Model — Week 3.
+Physiological state model — turns raw readings into one state label.
 
-Combines HR, restlessness, and posture slump into a single derived state label
-that the intervention orchestrator reasons against.  RR is collected into the
-snapshot for downstream use (and for the Week 5 agent prompt) but not yet
-factored into classify() — single RR values are too noisy to discriminate
-settling vs settled.
+Combines heart rate (HR), restlessness and posture slump into a single label
+that the rest of the app can reason about (the dev Signals page shows it,
+and the intervention picker in orchestrator/ receives it). Breathing rate (RR) is
+stored in the snapshot but NOT used by classify() yet — single RR readings
+are too noisy to tell "settling" from "settled".
 
-State categories
-----------------
-    elevated     HR significantly above baseline AND body active (restless)
-                 → sympathetic activation
-    settling     HR at or below baseline + restlessness low-moderate
-                 → moving toward calm
-    settled      low restlessness + HR near baseline + posture upright
+This is the natural place for a new signal (e.g. an EEG-derived calm/focus
+score) to join the state picture — see docs/EXTENDING.md.
+
+State labels
+------------
+    elevated     HR clearly above the person's baseline AND body moving
+                 → activated / keyed up
+    settling     HR at or below baseline, body not actively moving
+                 → coming down toward calm
+    settled      very still + HR near baseline + upright posture
                  → at ease, present
-    dissociated  low restlessness + slumped posture + HR not elevated
-                 → withdrawn / collapsed (distinct from settled — the
-                   plan calls this out explicitly)
-    unknown      insufficient data, or signal pattern doesn't match above
+    dissociated  very still + slumped + HR not elevated
+                 → withdrawn / collapsed (deliberately kept separate from
+                   "settled": stillness is not always ease)
+    unknown      not enough data, or the pattern matches none of the above
 
-Baseline lifecycle
-------------------
-Week 3 (now): auto-lock after AUTO_BASELINE_SAMPLES HR samples arrive
-    (~30 s at 1 Hz).  Lets the model produce real state labels during
-    standalone validation, before the subjective input flow exists.
+Baseline
+--------
+Every comparison is relative to the person's own baseline, because rPPG
+heart rate drifts in absolute terms but its *changes* are reliable. The
+baseline auto-locks once AUTO_BASELINE_SAMPLES heart-rate readings have
+arrived (~30 s at one reading per second). Before that, only "settled" or
+"unknown" can be returned.
 
-Week 4 (planned): when "Triggered" tapped, call start_baseline_collection()
-    (which disables auto-lock + resets accumulators).  When the 4-step
-    subjective input completes, call lock_baseline() explicitly.
-
-Thresholds were tuned against Week 3 live validation data:
-    - resting HR ~70-95 BPM (rPPG drifts upward; we trust *deltas* per the
-      project rule, not magnitudes — see auto_memory feedback note)
-    - breath-hold caused HR baseline 70 → 113 (~60% above baseline)
+Thresholds were hand-tuned on live webcam sessions:
+    - resting HR read ~70-95 BPM (rPPG drifts upward, so we compare deltas)
+    - a breath-hold pushed HR from a 70 baseline to 113 (~60% above)
     - restlessness: ≤0.10 settled, ≥0.30 noticeable movement, ≥0.50 fidgeting
     - slump_score: 0.25-0.35 upright, <0.20 slouched
 """
@@ -47,6 +47,8 @@ StateLabel = Literal["unknown", "elevated", "settling", "settled", "dissociated"
 
 @dataclass
 class PhysioSnapshot:
+    """Averaged readings at one moment, plus the derived state label.
+    Also used to store the locked baseline."""
     hr_bpm: float | None = None
     rr_bpm: float | None = None
     restlessness: float | None = None
@@ -55,6 +57,10 @@ class PhysioSnapshot:
 
 
 class PhysiologicalStateModel:
+    """Rolling buffers of recent readings for ONE user (main.py creates one
+    per WebSocket connection). Feed it with push(); read it with
+    current_snapshot() or classify()."""
+
     WINDOW = 30          # rolling buffer for baseline accumulation (~30 s)
     LIVE_WINDOW = 5      # samples used by classify() for *live* state (~5 s)
                          # — using the full WINDOW lags transitions badly, since
@@ -62,13 +68,12 @@ class PhysiologicalStateModel:
                          # settled data.  Baseline still uses the full WINDOW.
 
     # Auto-baseline: lock after this many HR samples accumulated (~30 s at
-    # 1 push/s from the WS handler).  Week 4 will disable this in favor of
-    # explicit lock at the end of the subjective input flow.
+    # 1 push/s from the WS handler).
     AUTO_BASELINE_SAMPLES = 30
 
-    # Classification thresholds — tuned against Week 3 validation data.
+    # Classification thresholds — hand-tuned on live webcam sessions.
     # All HR comparisons use fractional delta from baseline (rPPG absolute
-    # value drifts but the relative shift is reliable — per project rule).
+    # value drifts but the relative shift is reliable).
     HR_ELEVATED_FRAC = 0.08   # HR ≥ baseline × 1.08 → activation territory
     HR_SETTLED_FRAC  = 0.05   # HR within ±5% of baseline → at-rest
     REST_ACTIVE      = 0.30   # restlessness above this → body actively moving
@@ -85,7 +90,6 @@ class PhysiologicalStateModel:
         self._hr_sample_count             = 0
         self._auto_baseline               = auto_baseline
         self.baseline: PhysioSnapshot | None = None
-        self._collecting_baseline         = False
 
     # ------------------------------------------------------------------
     # Public API
@@ -98,6 +102,8 @@ class PhysiologicalStateModel:
         restlessness: float | None = None,
         posture_slump: float | None = None,
     ):
+        """Add the latest readings (None values are skipped). Locks the
+        baseline automatically once enough heart-rate samples arrive."""
         if hr is not None:
             self._hr.append(hr)
             self._hr_sample_count += 1
@@ -113,21 +119,8 @@ class PhysiologicalStateModel:
         if posture_slump is not None:
             self._posture_slump.append(posture_slump)
 
-    def start_baseline_collection(self):
-        """
-        Week 4 entry: called when the user taps 'Triggered'.  Resets accumulators
-        and disables auto-lock so the subjective input flow controls timing.
-        """
-        self._auto_baseline       = False
-        self._collecting_baseline = True
-        self._hr.clear()
-        self._rr.clear()
-        self._restlessness.clear()
-        self._posture_slump.clear()
-        self._hr_sample_count     = 0
-        self.baseline             = None
-
     def lock_baseline(self) -> PhysioSnapshot:
+        """Freeze the current full-window averages as this user's baseline."""
         self.baseline = PhysioSnapshot(
             hr_bpm=self._mean(self._hr),
             rr_bpm=self._mean(self._rr),
@@ -135,10 +128,10 @@ class PhysiologicalStateModel:
             posture_slump=self._mean(self._posture_slump),
             state=self.classify(),
         )
-        self._collecting_baseline = False
         return self.baseline
 
     def current_snapshot(self) -> PhysioSnapshot:
+        """Full-window averages right now, plus the live state label."""
         return PhysioSnapshot(
             hr_bpm=self._mean(self._hr),
             rr_bpm=self._mean(self._rr),
@@ -148,6 +141,8 @@ class PhysiologicalStateModel:
         )
 
     def classify(self) -> StateLabel:
+        """Return the live state label (see module docstring for meanings).
+        Rules are checked in priority order; first match wins."""
         # Live values — recent samples only.  Baseline lock still uses _mean()
         # over the full WINDOW, but live state needs to react to transitions.
         hr    = self._recent_mean(self._hr)
@@ -174,7 +169,7 @@ class PhysiologicalStateModel:
             return "elevated"
 
         # 2. Dissociated — slumped + very still + HR not elevated.  This is
-        # explicitly *distinct* from settled per the plan (withdrawn ≠ at ease).
+        # deliberately *distinct* from settled (withdrawn ≠ at ease).
         # Requires hips visible (slump must not be None) to distinguish from
         # the upright-but-still case.
         if (slump is not None and slump < self.SLUMP_DISSOC
@@ -207,6 +202,7 @@ class PhysiologicalStateModel:
         return float(sum(q) / len(q)) if q else None
 
     def _recent_mean(self, q: deque) -> float | None:
+        """Mean of the last LIVE_WINDOW samples only."""
         if not q:
             return None
         recent = list(q)[-self.LIVE_WINDOW:]

@@ -1,5 +1,17 @@
 """
-SQLite session store — Week 6 implementation target.
+SQLite session store — one row per completed session.
+
+┌─ NOT WIRED ────────────────────────────────────────────────────────────┐
+│ Nothing in the app calls these functions yet, so NO SESSIONS ARE SAVED. │
+│ The code works on its own (it creates backend/data/sessions.db on first │
+│ use). Wiring it up = calling save_session() from main.py's              │
+│ "session_complete" handler. Recorded sessions would be the natural      │
+│ training data for future models — but think about consent and privacy  │
+│ first. See docs/KNOWN_ISSUES.md.                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+
+The database file lives in backend/data/, which is gitignored (never commit
+user data) and mounted as a volume by docker-compose.yml.
 
 Schema (one row per completed intervention session):
     id                 INTEGER PRIMARY KEY
@@ -15,8 +27,6 @@ Schema (one row per completed intervention session):
     agent_reasoning    TEXT
     duration_s         INTEGER
     source             TEXT    ("rules" | "agent")
-
-Week 6 TODO: add last_session() query for the Home screen "return to seed" prompt.
 """
 
 import json
@@ -28,6 +38,7 @@ DB_PATH = Path(__file__).parent.parent / "data" / "sessions.db"
 
 
 def _connect() -> sqlite3.Connection:
+    """Open the database (creating backend/data/ if needed); rows act like dicts."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
@@ -35,6 +46,7 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_db():
+    """Create the sessions table if it doesn't exist yet. Safe to call repeatedly."""
     with _connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
@@ -69,6 +81,7 @@ def save_session(
     duration_s: int,
     source: str = "rules",
 ) -> int:
+    """Insert one session row (timestamped now, UTC) and return its id."""
     init_db()
     with _connect() as conn:
         cur = conn.execute(

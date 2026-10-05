@@ -1,15 +1,16 @@
 """
 OshiNarrator — response handling: build → call → sanitize → fall back.
 
-This is the piece agent.py calls. It owns the two-layer voice from the Spec:
+backend/main.py calls this (one narrator per WebSocket connection). It owns
+Oshi's two-layer voice:
     Layer 1 (scripted): always available, returned instantly, zero API.
     Layer 2 (live Haiku): upgrades the line if a clean one comes back in time.
 
 Every path is safe: any error, timeout, empty, or filter-rejected line keeps
 the scripted fallback. The narrator never raises into the socket loop.
 
-Usage (in agent.py / main.py)
------------------------------
+Usage (as in main.py)
+---------------------
     narrator = OshiNarrator()                      # picks up ANTHROPIC_API_KEY
 
     # per screen:
@@ -44,6 +45,9 @@ MAX_TOKENS_REFLECTION = 220
 
 
 class OshiNarrator:
+    """Produces Oshi's per-screen lines and post-session reflection.
+    Pass `client` to inject a fake Anthropic client in tests."""
+
     def __init__(self, client=None, model: str = MODEL, timeout_s: float = TIMEOUT_S):
         self.model = model
         self.timeout_s = timeout_s

@@ -5,12 +5,33 @@
 # Copyright 2007, Gabriel J.L. Beckers (NumPy translation)
 # GNU GPL v3 — see original header for full license text
 #
-# Ported into Clarity Loop from the Heart-Rate-Detection reference (Python 2 → 3).
-# NOTE: uses numpy.matrix which is deprecated in NumPy 2.x but still functional.
+# Ported into Clarity Loop from the Heart-Rate-Detection reference project
+# (Python 2 → 3). See CREDITS.md. Because this file is GPL-v3, it affects the
+# license choice for the whole project if the code is ever distributed.
+"""
+JADE — an Independent Component Analysis (ICA) algorithm.
+
+What it does, in plain words: the webcam gives us three signals (the average
+red, green and blue brightness of the face, frame by frame). Each one is a
+MIX of the pulse plus lighting changes, head motion and camera noise. ICA
+"un-mixes" them into three independent source signals; one of those sources
+usually carries the pulse. `heart_rate.py` then picks the most periodic one.
+
+JADE ("Joint Approximate Diagonalization of Eigen-matrices") is one specific
+ICA method. You do not need to understand its maths to use it: call `run(X)`.
+
+Reading the code: variable names follow the original MATLAB/French source.
+    seuil  = "threshold" — rotations smaller than this count as converged
+    encore = "again"     — keep sweeping while any rotation was applied
+    On/Off = energy on / off the diagonal of the cumulant matrices
+
+Known issue: uses `numpy.matrix`, which NumPy has deprecated. It still works
+on NumPy 2.x today (see docs/KNOWN_ISSUES.md).
+"""
 
 from numpy import (abs, append, arange, arctan2, argsort, array, concatenate,
-                   cos, diag, dot, eye, float64, matrix, multiply, ndarray,
-                   newaxis, sign, sin, sqrt, zeros)
+                   cos, diag, dot, eye, float64, matrix, multiply,
+                   sign, sin, sqrt, zeros)
 from numpy.linalg import eig, pinv
 
 
@@ -76,19 +97,16 @@ def jadeR(X):
         On = On + (Diag * Diag).sum(axis=0)
         Range = Range + m
     Off = (multiply(CM, CM).sum(axis=0)).sum(axis=0) - On
-    seuil = 1.0e-6 / sqrt(T)
-    encore = True
-    sweep = 0
-    updates = 0
+    seuil = 1.0e-6 / sqrt(T)     # convergence threshold for rotation angles
+    encore = True                # True while another sweep is needed
     g = zeros([2, int(nbcm)], dtype=float64)
     gg = zeros([2, 2], dtype=float64)
     G = zeros([2, 2], dtype=float64)
 
+    # Sweep over every pair of components, rotating each pair (Givens
+    # rotation) until no rotation larger than `seuil` is needed.
     while encore:
         encore = False
-        sweep += 1
-        upds = 0
-        Vkeep = V
         for p in range(m - 1):
             for q in range(p + 1, m):
                 Ip = arange(p, m * int(nbcm), m)
@@ -101,7 +119,6 @@ def jadeR(X):
                 Gain = (sqrt(ton * ton + toff * toff) - ton) / 4.0
                 if abs(theta) > seuil:
                     encore = True
-                    upds += 1
                     c = cos(theta)
                     s = sin(theta)
                     G = matrix([[c, -s], [s, c]])
@@ -115,8 +132,9 @@ def jadeR(X):
                     )
                     On += Gain
                     Off -= Gain
-        updates += upds
 
+    # Combine the rotations with the whitening matrix, then order and
+    # sign-normalise the rows so the output is deterministic.
     B = V.T * B
     A = pinv(B)
     keys = array(argsort(multiply(A, A).sum(axis=0)[0]))[0]

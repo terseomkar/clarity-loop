@@ -2,8 +2,8 @@
 Oshi orchestration — I/O schema passed between steps.
 
 Plain dataclasses (matching the style of rules.py / state/model.py — no new
-deps). These model the payloads that cross the WebSocket (Spec §6) and the
-values the narrator reads. `from_dict` constructors tolerate partial / missing
+deps). These model the payloads that cross the WebSocket (full message list
+in CLAUDE.md) and the values the narrator reads. `from_dict` constructors tolerate partial / missing
 fields so a half-filled survey never raises.
 
 Wire summary
@@ -16,7 +16,7 @@ Wire summary
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 # The survey/retrospective steps, in flow order. `session` is the game itself
@@ -34,6 +34,9 @@ Signal = Literal["intensity", "breath", "restlessness"]
 
 # game1 (phoenix ascent) runs the CV pipeline → breath + restlessness deltas.
 # game2 (grandmaster's count) has no CV capture → intensity delta only.
+# game3 and game4 are not listed, so they fall back to intensity-only (see
+# SessionResult.available_signals). When a game starts reporting a new
+# signal (e.g. an EEG calm score), add it to `Signal` and list it here.
 AVAILABLE_SIGNALS_BY_PATH: dict[str, tuple[Signal, ...]] = {
     "game1": ("intensity", "breath", "restlessness"),
     "game2": ("intensity",),
@@ -48,7 +51,7 @@ class SubjectiveInput:
     intensity: int | None = None       # 1–10 felt ring
     body_region: str | None = None     # head/throat/chest/belly/core/...
     emotion: str | None = None         # leaf word from the feeling wheel
-    emotion_core: str | None = None    # the wheel's root category
+    emotion_core: str | None = None    # the wheel's root category (parsed but not used yet)
     time_of_day: TimeOfDay = "auto"
 
     @classmethod
@@ -67,7 +70,7 @@ class SubjectiveInput:
 class SessionResult:
     """The post-session payload (POST_SESSION). Deltas present depend on path
     (see AVAILABLE_SIGNALS_BY_PATH). Breath/restlessness are None for game2."""
-    path: str                                  # "game1" | "game2"
+    path: str                                  # "game1" … "game4"
     intensity_pre: int | None = None
     intensity_post: int | None = None
     breath_pre: float | None = None            # breaths/min, game1 only

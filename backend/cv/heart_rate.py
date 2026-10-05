@@ -1,30 +1,42 @@
 """
-Heart rate detection via remote photoplethysmography (rPPG).
+Heart-rate estimation from a webcam ("rPPG").
 
-Pipeline (Week 1 / reference-compatible):
-    Browser extracts per-frame RGB averages from face forehead ROI.
-    Sends buffer of (r[], g[], b[]) over WebSocket every ~1 second.
-    This module:
-        1. Builds 3×N matrix, normalises each channel.
-        2. Runs JADE ICA to separate blood-volume-pulse signal from noise.
-        3. Applies Hamming window, then selects the ICA component with
-           the highest power-to-peak ratio (most periodic signal).
-        4. FFT peak in the 45–200 BPM range → BPM.
+rPPG = remote photoplethysmography: each heartbeat pushes blood into the
+skin, which changes the face's colour very slightly. Averaged over a patch
+of skin, that change is visible to an ordinary webcam.
 
-Week 2 (done):
-    - MediaPipe Face Mesh ROI added in frontend/js/camera.js.
-    - Bandpass filter (BPM_LOW–BPM_HIGH Hz) applied after normalisation, before ICA.
-    - Signal quality uses SNR of dominant peak vs mean band power.
+Where the data comes from
+    The browser (frontend/js/camera.js) finds the face with MediaPipe Face
+    Mesh, averages the red/green/blue values over a forehead + cheek region
+    (the "ROI", region of interest) each frame, and sends ~128 frames of those
+    averages over the WebSocket about once a second ({type: "hr_data"}).
+
+What this module does with it
+    1. Stacks r/g/b into a 3×N matrix and normalises each row (zero mean,
+       unit variance).
+    2. Runs JADE ICA (see jade.py) to un-mix the three channels into three
+       independent source signals.
+    3. Windows each source (Hamming), squares its inverse FFT, and keeps the
+       source with the highest total-power / peak-power ratio. This selection
+       rule is copied exactly from the Heart-Rate-Detection reference project.
+    4. Takes the strongest FFT frequency inside 45–200 BPM as the heart rate.
+    5. Reports signal quality from the SNR (signal-to-noise ratio: peak power
+       divided by mean power in that band).
+
+Accuracy note: absolute BPM from rPPG drifts with lighting and movement.
+The project deliberately treats it as a TREND (rising / falling relative to
+the person's own baseline), never as a clinical number.
 """
 
 import numpy as np
-from numpy import matrix
-from scipy.signal import butter, filtfilt
 
 from .jade import run as jade_run
 
 
 class HeartRateDetector:
+    """Stateless heart-rate estimator. One instance is shared by all
+    WebSocket connections (see backend/main.py)."""
+
     FPS: int = 15           # must match camera.js capture rate
     BPM_LOW: float = 0.75   # 45 BPM in Hz
     BPM_HIGH: float = 3.33  # 200 BPM in Hz
@@ -32,6 +44,8 @@ class HeartRateDetector:
 
     def process(self, r: list, g: list, b: list, buffer_window: int, fps: float | None = None) -> dict:
         """
+        Estimate heart rate from one buffer of per-frame colour averages.
+
         Parameters
         ----------
         r, g, b       : per-frame channel averages (length = buffer_window)
@@ -44,6 +58,8 @@ class HeartRateDetector:
             bpm           : float | None
             spectrum      : list[float]  (power spectrum for frontend display)
             signal_quality: "ok" | "poor" | "insufficient_data" | "error"
+            snr           : float  (only when a BPM was computed)
+        Never raises — errors come back as signal_quality "error".
         """
         if len(g) < self.MIN_BUFFER or buffer_window < self.MIN_BUFFER:
             return {"bpm": None, "spectrum": [], "signal_quality": "insufficient_data"}
@@ -54,15 +70,16 @@ class HeartRateDetector:
             # Build 3×N float64 matrix (matches reference model.py exactly)
             X = np.ndarray(shape=(3, buffer_window), buffer=np.array([r, g, b]))
             X = self._normalize(X)
-            # Note: bandpass before ICA was tested but biases component selection;
-            # the cardiac band is enforced via the valid-frequency mask in _extract.
+            # No band-pass filter before ICA: one was tried and it biased which
+            # component got selected. The 45–200 BPM band is enforced later,
+            # by the valid-frequency mask in _extract().
             ica_output = jade_run(X)          # shape: (buffer_window, 3)
             spectrum, bpm, snr = self._extract(ica_output, effective_fps)
 
             # SNR threshold relaxed 4.0 → 3.0 to match measured signal in typical
-            # indoor lighting (validation showed SNRs of 1.7–3.8 with mean ~2.7).
-            # The absolute BPM still drifts — per the project rule we trust the
-            # *variability* not the magnitude — but signal_quality should reflect
+            # indoor lighting (live testing showed SNRs of 1.7–3.8, mean ~2.7).
+            # The absolute BPM still drifts — the project trusts the *change*
+            # in BPM, not its exact value — but signal_quality should reflect
             # what the algorithm is actually achieving, not a textbook ideal.
             quality = "ok" if (bpm and snr > 3.0) else "poor"
             return {"bpm": bpm, "spectrum": spectrum, "signal_quality": quality, "snr": round(snr, 2)}
@@ -74,16 +91,8 @@ class HeartRateDetector:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _bandpass(self, data: np.ndarray, fps: float) -> np.ndarray:
-        nyq = fps / 2.0
-        low = max(self.BPM_LOW / nyq, 0.01)
-        high = min(self.BPM_HIGH / nyq, 0.99)
-        if high <= low or len(data) < 20:
-            return data
-        b, a = butter(4, [low, high], btype="band")
-        return filtfilt(b, a, data)
-
     def _normalize(self, mat: np.ndarray) -> np.ndarray:
+        """Return a copy with each row rescaled to zero mean, unit variance."""
         mat = mat.astype(np.float64).copy()
         for row in mat:
             std = np.std(row)
@@ -93,10 +102,14 @@ class HeartRateDetector:
 
     def _extract(self, ica_output: np.ndarray, fps: float):
         """
-        Matches reference model.py parse_ICA_results exactly.
-        Applies Hamming + irfft(n=len) + square to each component, then selects
-        the component with the highest total-power / peak-power ratio.
-        n=len(c) is required to preserve buffer length (reference code does this explicitly).
+        Pick the pulse-carrying ICA component and find its frequency.
+
+        Matches parse_ICA_results() in the Heart-Rate-Detection reference
+        project exactly: Hamming window + irfft(n=len) + square on each
+        component, then keep the component with the highest
+        total-power / peak-power ratio. n=len(c) preserves the buffer length.
+
+        Returns (spectrum list, bpm or None, snr).
         """
         components = []
         for i in range(3):
