@@ -29,3 +29,6 @@ Thumbs.db
 
 # Node (future)
 node_modules/
+
+# Test cache
+.pytest_cache/
