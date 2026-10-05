@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- Page: / and /survey — LANDING PAGE. Oshi Survey & Retrospective.
+     Logic: js/oshi_flow.js (+ js/websocket.js). Before a game: how do you feel?
+     After a game (player returns here): the reflection.
+     Map of all pages: frontend/CLAUDE.md -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -57,7 +61,7 @@
 
     <!-- 4.1 · welcome ------------------------------------------------- -->
     <section id="scr-welcome" class="oshi-screen" data-screen="welcome">
-      <img src="/static/img-rune-circle/rune_circle.png" alt="" aria-hidden="true"
+      <img src="/static/img/rune_circle.png" alt="" aria-hidden="true"
            class="rune-circle">
       <div class="oshi-eyebrow">with grandmaster oshi</div>
       <div class="oshi-title">clarity loop</div>
@@ -207,14 +211,16 @@
 
 <!-- Nav — kept minimal so it doesn't compete with the stage. -->
 <nav class="mode-nav oshi-nav">
-  <a href="/survey" class="mode-link active">Survey</a>
+  <!-- Shared nav: same links on every page (see frontend/CLAUDE.md). -->
+  <a href="/" class="mode-link active">Home</a>
   <a href="/game1" class="mode-link">Game 1</a>
   <a href="/game2" class="mode-link">Game 2</a>
   <a href="/game3" class="mode-link">Game 3</a>
   <a href="/game4" class="mode-link">Game 4</a>
-  <a href="/mirror" class="mode-link">Mirror</a>
-  <a href="/observe" class="mode-link">Observation</a>
-  <a href="/" class="mode-link">Sensing</a>
+  <span class="mode-nav-sep" aria-hidden="true">dev</span>
+  <a href="/dev/signals" class="mode-link dev-link">Signals</a>
+  <a href="/dev/observe" class="mode-link dev-link">Observe</a>
+  <a href="/dev/mirror" class="mode-link dev-link">Mirror</a>
 </nav>
 
 <!-- Shared WebSocket client (used to talk to backend/main.py — same

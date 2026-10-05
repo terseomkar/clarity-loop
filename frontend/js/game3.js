@@ -1,25 +1,31 @@
 /**
- * Clarity Loop — Game 3.  Follow the Flame — a 4·4·4·4 box-breathing pacer.
+ * Clarity Loop — Game 3: Follow the Flame  (page: /game3)
+ * A 4·4·4·4 box-breathing pacer: inhale 4 s, hold 4 s, exhale 4 s, hold 4 s.
  *
- * Core inversion vs. Game 1:  the flame LEADS, the breath FOLLOWS.  A fixed
- * JS box clock owns the flame's size/shape and the phase text.  CV drives
- * ONLY the flame's character (wobble/palette/glow via setAdherence) and the
- * end-of-session capture graph.  Never map a live signal to flame height —
- * that is the Game 1 mistake this game exists to fix.
+ * Design choice — the opposite of Game 1: here the flame LEADS and the
+ * breath FOLLOWS. A fixed clock in this file sets the flame's size/shape and
+ * the phase text. The camera only changes the flame's character (wobble,
+ * colour, glow) through "adherence" — how closely the player's breathing
+ * matches the pace — and feeds the end-of-session graph. Keep it that way:
+ * mapping a noisy live signal straight to flame size makes a pacer jittery
+ * and hard to follow.
  *
  * Screens:  SETUP → COUNTDOWN(3·2·1) → ACTIVE(pacer + flame + capture)
  *                                    → COMPLETE(capture graph → /survey)
  *
- * Adherence source:  BreathAnalyzer.computeRate(30) + computeRegularity(30)
- * vs. the 3.75 BPM box target, EMA-smoothed at 1 Hz.  Backend rr_bpm's
- * 0.15 Hz floor (≈ 9 BPM) cannot see box breathing — we deliberately do
- * not read it.
+ * Adherence: BreathAnalyzer.computeRate(30) + computeRegularity(30) compared
+ * with the 3.75 breaths/min box target, smoothed once per second with an
+ * EMA (exponential moving average). The backend's rr_bpm can't see breathing
+ * this slow (its band starts at 9 breaths/min), so this game ignores it.
  */
 
 // ============================================================
-// BreathAnalyzer — copied verbatim from game1.js; the frontend
-// zero-crossing rate works at slow box-breath cadences where the
-// backend FFT does not (see INTEGRATION §4.1).
+// BreathAnalyzer — copied from game1.js. The in-browser breath counting
+// works at slow box-breath cadences (one breath per 16 s), where the
+// backend FFT in respiration.py does not.
+//
+// DUPLICATE: see the note above BreathAnalyzer in game1.js for the other
+// copies (observe.js, mirror.js) and how they differ.
 // ============================================================
 const BreathAnalyzer = {
   samples: [],
@@ -109,7 +115,8 @@ const BreathAnalyzer = {
 
 
 // ============================================================
-// FlameField — ported from the prototype's `_setupFlame`.  Unlike
+// FlameField — ported from the Game 3 design prototype's `_setupFlame`
+// (a third flame variant; see the DUPLICATE note in game1.js). Unlike
 // game1's FlameField this one has:
 //   • setBreath(b) — flame SIZE driven by the box clock, not CV
 //   • setAdherence(a) — CV drives wobble / palette / glow / sparks
@@ -569,7 +576,7 @@ function createFlameField(canvas) {
   // character.  Rate-match (vs. 3.75 BPM) + regularity → 0..1 target,
   // then EMA-smooth toward it.  Freeze the EMA when the signal is
   // poor or the buffer is too short — a bad camera frame must never
-  // make the fire twitch (INTEGRATION §4.4).
+  // make the fire twitch.
   function _updateAdherence() {
     const rate = BreathAnalyzer.computeRate(30);
     const reg  = BreathAnalyzer.computeRegularity(30);

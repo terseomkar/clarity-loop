@@ -1,5 +1,9 @@
 /**
- * Clarity Loop — Mirror Mode.
+ * Clarity Loop — Mirror Mode  (developer page: /dev/mirror)
+ *
+ * A pure "breath → fire" visual with no game rules. Game 1 started as a
+ * copy of this file; keep it as a simple reference for how the chest
+ * signal maps to the flame.
  *
  * Breath rendered as a vector-style fire animation.  The renderer (FlameField)
  * draws cubic-bezier flame tongues with sharp edges and concentric colour
@@ -24,6 +28,9 @@
 // ============================================================
 // BreathAnalyzer — self-contained copy (Observation Mode has its own; we
 // intentionally do NOT share state across modes so they stay independent)
+//
+// DUPLICATE: see the note above BreathAnalyzer in game1.js for the other
+// copies and how they differ.
 // ============================================================
 const BreathAnalyzer = {
   samples: [],
@@ -128,6 +135,9 @@ const BreathAnalyzer = {
 // 3-4 concentric colour layers (outer red → middle orange → inner yellow →
 // hot core).  Multiple tongues spawn at offset positions to give the
 // "multiple licking flames" look from vector illustration references.
+//
+// DUPLICATE: game1.js has a newer copy of PALETTES / FlameTongue /
+// FlameField; game3.js has a third variant.
 // ============================================================
 
 const PALETTES = {

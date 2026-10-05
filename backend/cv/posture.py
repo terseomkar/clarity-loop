@@ -1,9 +1,9 @@
 """
-Posture and restlessness detection — Week 3.
+Posture and restlessness from body landmarks (front-facing webcam).
 
-Pipeline (matches the plan's MediaPipe Pose, front-facing approach):
+Pipeline:
 
-    Frontend (@mediapipe/pose in the browser) runs the model and ships
+    Frontend (@mediapipe/pose in the browser) runs the pose model and ships
     only the seven landmarks we care about over WebSocket as
     { type: "pose_data", landmarks: { "0": {x,y,visibility}, ... } }.
 
@@ -18,9 +18,10 @@ Pipeline (matches the plan's MediaPipe Pose, front-facing approach):
         restlessness        mean per-coord stdev of (nose + shoulders + hips)
                             over the rolling window, scaled into [0, 1]
 
-    All values are normalised image-space (no calibration needed — we only
-    care about *change*, consistent with the "Ambiguity as Design" principle
-    and the validated rule of trusting deltas over absolutes).
+    All values are in normalised image coordinates (0–1 across the frame),
+    so no calibration is needed. We only care about *change* over time, in
+    line with the project's "show trends, not precise numbers" principle
+    (docs/design-principles.md, "Ambiguity as Design").
 
 Visibility gate: landmarks below MIN_VISIBILITY are dropped. If hips drop
 out of frame (common at typical webcam distance) we degrade to upper-body
@@ -28,7 +29,8 @@ metrics rather than refusing entirely — signal_quality becomes
 "upper_body_only" and slump_score is None.
 
 RESTLESS_SAT is the saturation point in image-space stdev — the value at
-which restlessness clamps to 1.0. Will be tuned during live validation.
+which restlessness clamps to 1.0. Tuned by hand; adjust if restlessness
+reads as always-0 or always-1 on a new camera setup.
 """
 
 from collections import deque
@@ -46,6 +48,9 @@ RIGHT_HIP      = 24
 
 
 class PostureDetector:
+    """Per-connection posture tracker. Holds a rolling window of landmark
+    positions, so main.py creates one instance per WebSocket client."""
+
     WINDOW_FRAMES  = 30      # ~6 s at ~5 fps client-side pose updates
     MIN_VISIBILITY = 0.5
     RESTLESS_SAT   = 0.04    # image-space stdev at which restlessness saturates
@@ -127,6 +132,7 @@ class PostureDetector:
         return self._last_metrics
 
     def latest(self) -> dict:
+        """The most recent posture snapshot (same keys as push_landmarks)."""
         return self._last_metrics
 
     # ------------------------------------------------------------------
@@ -134,6 +140,7 @@ class PostureDetector:
     # ------------------------------------------------------------------
 
     def _get(self, landmarks: dict, idx: int) -> dict | None:
+        """Look up one landmark; None if missing or not visible enough."""
         # Keys arrive as strings from JSON; tolerate both.
         lm = landmarks.get(str(idx)) or landmarks.get(idx)
         if not lm:

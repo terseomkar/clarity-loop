@@ -1,20 +1,43 @@
 /**
- * Clarity Loop — Game 1.
+ * Clarity Loop — Game 1: Phoenix Ascent  (page: /game1)
  *
- * Scaffolded as a direct copy of Mirror Mode (mirror.js).  Currently behaves
- * identically — the goal of this step is to verify the standalone page works
- * end-to-end before the gamification layer gets added on top.
+ * The player's breathing feeds a flame. Slow, deep breaths with long exhales
+ * grow and brighten it, which fills a progress bar; at 100% a phoenix rises.
+ * Started as a copy of the Mirror dev page (dev/mirror.html, js/mirror.js)
+ * and has since grown a game layer: calibration, progress, checkpoints,
+ * audio, and an end-of-session breath graph.
  *
- * Same architecture:
- *   Real-time chest signal (~15 Hz)  → live flame height pulse
- *   Slow metrics (1 s tick / 60 s window)
- *       rate, depthRatio, ieRatio, isHeld → flame character via FlameField
+ * Signal flow:
+ *   camera.js chest-brightness samples (~15 per second)
+ *       → BreathAnalyzer (below) → a live flame-height pulse
+ *   Every 1 s, metrics over a 60 s window
+ *       breathing rate, depthRatio, I:E ratio, isHeld → flame character (FlameField)
+ *   hr_result.posture.restlessness from the backend
+ *       → "motion gate" that pauses progress during sudden body movement
  *
- * Each mode keeps its own BreathAnalyzer + FlameField — no shared state.
+ * Terms used in this file:
+ *   depthRatio  current breath size ÷ the player's calibrated baseline breath
+ *               ("tidal" volume = the size of a normal resting breath)
+ *   I:E / E:I   inhale-to-exhale duration ratio (a long exhale = E:I > 1)
+ *   EMA         exponential moving average (a cheap running smoother)
+ *   pace reward 1 when breathing slowly, falling to 0 when breathing fast
+ *   decoupled   progress is frozen (moving too much or breathing too fast)
+ *
+ * Each page keeps its own copy of BreathAnalyzer + FlameField; nothing is
+ * shared between pages (see docs/KNOWN_ISSUES.md, "duplicated breath code").
  */
 
+// Set to true to print a progress diagnostic to the console every 5 s.
+const GAME1_DEBUG = false;
+
 // ============================================================
-// BreathAnalyzer
+// BreathAnalyzer — finds breath peaks/troughs in the chest-brightness
+// signal and derives rate, depth, I:E ratio and regularity.
+//
+// DUPLICATE: near-copies live in observe.js, mirror.js and game3.js. They
+// have drifted: EXTREMA_HALF_WIN is 10 here and in game3 but 5 in mirror
+// and observe; computeRegularity exists only here and in game3; countCycles
+// only here. Change each copy deliberately — see docs/KNOWN_ISSUES.md.
 // ============================================================
 const BreathAnalyzer = {
   samples: [],
@@ -149,6 +172,9 @@ const BreathAnalyzer = {
 
 // ============================================================
 // FlameField — vector-style flame tongues with crisp bezier edges.
+//
+// DUPLICATE: PALETTES / FlameTongue / FlameField are also in mirror.js
+// (older version), and game3.js has a third variant, createFlameField().
 // ============================================================
 
 const PALETTES = {
@@ -861,18 +887,18 @@ const GameApp = (() => {
   let _baselineTidal        = null;
   let _lastBaselineUpdate   = 0;
 
-  // Raw depthRatio preserved for future metrics; stabilized version drives the
-  // fire, the glow-boost, AND the progress rate (so movement spikes don't leak
-  // into game progression).
+  // Slow-metric state, refreshed every 1 s tick. _depthRatio is the raw
+  // ratio (drives palette / wobble); _depthAmp is its amplified version
+  // (drives flame size + progress — see _expAmplify below).
   let _rate = null;
   let _depthRatio = null, _depthAmp = null, _ie = null, _isHeld = false;
-  let _cyclesIn10s = 0;         // peaks in the last 10 s (per user request)
+  let _cyclesIn10s = 0;         // breath peaks in the last 10 s
   let _paceReward  = 1.0;       // 1 = calm/slow, 0 = fast — drives flame size + jitter + progress
   let _regularity   = null;
   let _restlessness = null;    // 0..1 from backend posture snapshot (windowed)
   let _restPrev     = null;    // previous restlessness — used to compute delta
-  let _lastDeltaGate = 1.0;    // motion-delta gate applied on latest tick (progress only)
-  let _lastDebugAt   = 0;      // throttle for the console-log diagnostic
+  let _lastDeltaGate = 1.0;    // motion gate (1 = still, 0 = sudden movement); progress only
+  let _lastDebugAt   = 0;      // throttle for the GAME1_DEBUG console diagnostic
 
   // ---------------------------------------------------------------------------
   // Signal → visual/game aspect mapping (one signal per aspect, no cross-talk):
@@ -931,7 +957,7 @@ const GameApp = (() => {
   }
 
   // Session capture — every ACTIVE tick logs a sample so the completion popup
-  // can show raw vs stabilized (with gate context) on the same axis.
+  // can graph raw vs amplified depth (with gate context) on the same axis.
   let _sessionLog     = [];
   let _sessionStartMs = null;
 
@@ -1218,9 +1244,8 @@ const GameApp = (() => {
     // two skip the IDLE→ACTIVE branch that used to set this).
     if (_sessionStartMs === null) _sessionStartMs = performance.now();
 
-    // `gain` is the combined rate × motion gate applied to the stabilized
-    // value; per-sub-gate values are logged for diagnostics so the summary
-    // can attribute suppression to a specific cause.
+    // Each gate's value (motion, pace) is logged separately so the summary
+    // graph can show which one froze progress at any moment.
     if (_depthRatio != null) {
       _sessionLog.push({
         t:          (performance.now() - _sessionStartMs) / 1000,
@@ -1275,11 +1300,11 @@ const GameApp = (() => {
       rate = flameScore * FLAME_RATE;
     }
 
-    // Diagnostic — dump the score components every 5 s so we can see WHY
-    // progress isn't accumulating.  Common culprits:
+    // Diagnostic (set GAME1_DEBUG = true at the top of this file) — dump the score
+    // components every 5 s to see WHY progress isn't accumulating:
     //   • sizeScore ≈ 0  → depth barely above baseline (calibration or shallow)
     //   • decoupled=true → pace suppression or motion event freezing the bar
-    if (!_lastDebugAt || (performance.now() - _lastDebugAt) > 5000) {
+    if (GAME1_DEBUG && (!_lastDebugAt || (performance.now() - _lastDebugAt) > 5000)) {
       _lastDebugAt = performance.now();
       console.log(
         `[Clarity progress] state=${_gameState} progress=${(_progress*100).toFixed(1)}% `
@@ -1308,7 +1333,7 @@ const GameApp = (() => {
       phoenix.triggerEmerge();
       const btn = document.getElementById('session-btn');
       if (btn && _sessionLog.length > 0) btn.style.display = 'inline-block';
-      // Retrospective hand-off (Survey § POST_SESSION).  Shown even
+      // Retrospective hand-off back to /survey.  Shown even
       // when the user didn't come from /survey — /survey handles the
       // "fresh start" case gracefully.
       const oshiBtn = document.getElementById('oshi-btn');
@@ -1391,10 +1416,9 @@ const GameApp = (() => {
 
   // -----------------------------------------------------------
   // Session-capture modal + dual-trace graph
-  //   Plots raw depthRatio (from BreathAnalyzer, no processing) against
-  //   stabilized depthRatio (after BreathStabilizer) on the same time axis
-  //   so we can visually assess how much movement-spike rejection + deep-
-  //   breath amplification the stabilizer applied.
+  //   Plots raw depthRatio (from BreathAnalyzer) against the amplified
+  //   depth (_expAmplify) on the same time axis, with the motion / pace
+  //   gates as context, so you can see when and why progress grew or froze.
   // -----------------------------------------------------------
   const _GRAPH_PX_PER_SEC = 20;      // horizontal density
   const _GRAPH_HEIGHT     = 720;     // must match .session-graph-canvas CSS height

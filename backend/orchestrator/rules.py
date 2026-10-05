@@ -1,15 +1,29 @@
 """
-Rule-based intervention orchestrator — Week 4 implementation target.
+Rule-based intervention picker — the offline fallback for agent.py.
 
-Priority mapping (from 7-week plan):
-    High arousal + chest/throat + tightness/pressure  → extended_exhale
-    Restlessness high + buzzing/tingling               → stillness_lock
-    Dissociative + numbness/cold                       → haptic_grounding
-    Racing/overwhelm + head + pressure                 → attention_anchor
-    Moderate arousal + seeking calm                    → visual_downregulation | heartbeat_entrainment
-    General settling + any                             → brightness_breathing
+┌─ NOT WIRED ────────────────────────────────────────────────────────────┐
+│ This module runs (main.py calls it, via AgentOrchestrator, whenever the  │
+│ survey reaches its "offering" screen), but NOTHING USES ITS RESULT.      │
+│ The browser stores the `intervention` message in sessionStorage and     │
+│ never reads it back; the player picks a game themselves. Six of the     │
+│ eight intervention ids below have no UI at all.                         │
+│ Wiring it up = deciding which game/experience each id maps to, then     │
+│ having frontend/js/oshi_flow.js highlight or launch it.                 │
+│ See docs/KNOWN_ISSUES.md.                                               │
+└─────────────────────────────────────────────────────────────────────────┘
 
-Cooldown logic: same intervention not repeated twice in a row.
+Decision table (first match wins — see _select):
+    elevated + chest/throat + tightness/pressure  → extended_exhale
+    buzzing/tingling (any state)                  → stillness_lock
+    dissociated + numbness/cold                   → haptic_grounding
+    elevated + head/throat + tightness/pressure   → attention_anchor
+    elevated or settling                          → heartbeat_entrainment
+    anything else                                 → brightness_breathing
+
+`biofeedback_soundscape` and `spatial_audio_anchor` are never chosen by the
+table; they can only appear via the cooldown fallback.
+
+Cooldown: the same intervention is never returned twice in a row.
 """
 
 from dataclasses import dataclass
@@ -28,6 +42,7 @@ INTERVENTIONS = [
 
 @dataclass
 class OrchestratorResult:
+    """One recommendation. Same shape whether it came from rules or Haiku."""
     intervention_id: str
     params: dict
     reasoning: str
@@ -35,6 +50,12 @@ class OrchestratorResult:
 
 
 class RuleBasedOrchestrator:
+    """Deterministic picker: a fixed decision table plus a no-repeat cooldown.
+
+    Note: main.py holds ONE AgentOrchestrator (and therefore one of these)
+    for the whole server, so the cooldown is shared across all users.
+    """
+
     def __init__(self):
         self._last_intervention: str | None = None
 
@@ -49,8 +70,8 @@ class RuleBasedOrchestrator:
         """
         Map (physio_state + subjective input) → intervention recommendation.
 
-        Week 4 TODO: flesh out the full decision matrix with Omkar's testing
-        to validate that recommendations feel attuned, not algorithmic.
+        The table is a first draft: it has not been validated with users for
+        whether its picks feel attuned rather than mechanical.
         """
         sensations = sensations or []
         body_region = body_region or ""
@@ -75,6 +96,7 @@ class RuleBasedOrchestrator:
     # ------------------------------------------------------------------
 
     def _select(self, state: str, region: str, sensations: list[str]) -> str:
+        """The decision table from the module docstring."""
         tight_or_pressure = any(s in sensations for s in ["tightness", "pressure"])
         buzz_or_tingle = any(s in sensations for s in ["buzzing", "tingling"])
         numb_or_cold = any(s in sensations for s in ["numbness", "cold"])
@@ -94,6 +116,8 @@ class RuleBasedOrchestrator:
         return "brightness_breathing"
 
     def _fallback(self, exclude: str) -> str:
+        """First intervention in INTERVENTIONS that isn't `exclude`
+        (in practice: extended_exhale, or attention_anchor)."""
         for iv in INTERVENTIONS:
             if iv != exclude:
                 return iv
@@ -113,7 +137,9 @@ class RuleBasedOrchestrator:
         return defaults.get(intervention_id, {})
 
     def _reason(self, iv: str, state: str, region: str, sensations: list[str]) -> str:
-        # Week 5: replace with Claude Haiku narration. Keep tone phenomenological.
+        """Fixed one-line reasoning per intervention. Written in experiential
+        language (what it feels like), never diagnostic — agent.py's live
+        Haiku reasoning follows the same tone."""
         messages = {
             "extended_exhale": "there's a lot of heat right now — your chest is holding something. let's make some room.",
             "attention_anchor": "your mind is running fast. let's give it somewhere softer to land.",

@@ -1,5 +1,5 @@
 /**
- * Clarity Loop — Observational Mode.
+ * Clarity Loop — Observational Mode  (developer page: /dev/observe)
  *
  * Strips out HR, state classification, and absolute posture labels in favor of
  * (a) two raw waveform graphs of the signals the backend actually consumes, and
@@ -7,7 +7,8 @@
  *
  * Breath metrics derive from the detrended chest-luminance signal:
  *   - rate           via zero-crossing count over a 30 s window
- *   - tidal volume   locked once after 30 s warmup, peak-to-trough average
+ *   - tidal volume   size of a normal resting breath; locked once after a
+ *                    30 s warmup as the average peak-to-trough swing
  *   - depth          current rolling amplitude vs locked baseline
  *   - I:E ratio      avg rising-half duration vs avg falling-half duration
  *   - breath hold    recent stdev below a relative threshold
@@ -94,6 +95,9 @@ class TrendGraph {
 
 // ============================================================
 // BreathAnalyzer — derives metrics from the detrended chest signal
+//
+// DUPLICATE: see the note above BreathAnalyzer in game1.js for the other
+// copies and how they differ.
 // ============================================================
 const BreathAnalyzer = {
   samples: [],         // detrended chest values

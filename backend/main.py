@@ -1,19 +1,28 @@
 """
 Clarity Loop — FastAPI backend entry point.
 
-Run (development):
-    cd clarity-loop
-    source .venv/Scripts/activate   # Windows: .venv\\Scripts\\activate
+What lives here:
+    * HTTP routes that serve each page in frontend/ (plus /static and /audio)
+    * ONE WebSocket endpoint, /ws, that every page talks to. Each message has
+      a "type"; the handler below dispatches on it, runs the right detector
+      or Oshi call, and replies.
+
+Run (development), from the repo root:
+    python -m venv .venv
+    .venv\\Scripts\\activate            (Windows)   |   source .venv/bin/activate   (mac/Linux)
+    pip install -r backend/requirements.txt
     uvicorn backend.main:app --reload --port 8000
+    → open http://localhost:8000
 
 WebSocket protocol
 ------------------
 Client → Server:
-    {"type": "hr_data",  "r": [...], "g": [...], "b": [...], "bufferWindow": N}
+    {"type": "hr_data",  "r": [...], "g": [...], "b": [...], "bufferWindow": N,
+        "fps": 15, "chest": [...]}        # face RGB + chest brightness averages
     {"type": "pose_data", "landmarks": {"0": {x,y,visibility}, "7": {...}, ...}}
     {"type": "ping"}
     {"type": "subjective_input", "screen": "sensation", "sensation": "tightness",
-        "sensation_alias": "tightness",  # aliased chip for rules.py (§4.2)
+        "sensation_alias": "tightness",  # chip word normalised for rules.py
         "intensity": 7, "body_region": "chest", "emotion": "anxious",
         "emotion_core": "Fearful", "path": null, "time_of_day": "auto",
         "req_id": 12}
@@ -23,17 +32,23 @@ Client → Server:
         "sensation": "tightness", "body_region": "chest", "emotion": "anxious"}
 
 Server → Client:
-    {"type": "hr_result", "bpm": 72.3, "spectrum": [...], "signal_quality": "ok",
-                          "rr_bpm": 14.2, "rr_quality": "ok",
+    {"type": "hr_result", "bpm": 72.3, "snr": 3.1, "spectrum": [...],
+                          "signal_quality": "ok",
+                          "rr_bpm": 14.2, "rr_quality": "ok", "rr_snr": 2.0,
+                          "rr_peak_hz": 0.237,
                           "posture": {forward_head_lean, slump_score,
                                       shoulder_asymmetry, head_tilt_deg,
                                       restlessness, signal_quality},
-                          "state": "settling"}
+                          "state": "settling",
+                          "baseline": {locked, hr_bpm, rr_bpm,
+                                       restlessness, posture_slump}}
     {"type": "pong"}
     {"type": "oshi_line", "screen": "sensation", "text": "…", "req_id": 12}
     {"type": "intervention", "id": "extended_exhale", "params": {...},
-        "reasoning": "…", "source": "agent"}
+        "reasoning": "…", "source": "agent"}     # currently unused by the UI
     {"type": "reflection", "line": "…", "question": "…"}
+
+Adding a new signal or message type (e.g. EEG): see docs/EXTENDING.md.
 """
 
 import datetime
@@ -55,7 +70,7 @@ except ImportError:
     pass
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.cv.heart_rate import HeartRateDetector
@@ -67,18 +82,19 @@ from backend.orchestrator.oshi import (
     OshiNarrator, SubjectiveInput, SessionResult,
 )
 
-# Chip → rule-key alias (Spec §4.2).  Client should send an aliased
-# token in `sensation_alias`; keep this server-side map so a client
-# that skips it still hits the rule branches.
+# Survey chip word → the word rules.py's decision table expects. The client
+# normally sends the translated word in `sensation_alias`; this server-side
+# copy keeps the rules working for a client that doesn't.
 _CHIP_ALIAS = {"jittery": "buzzing", "heavy": "pressure"}
 
 
 def _resolve_time_of_day(tag: str | None) -> str:
-    """`_circadian()` on the server — resolve 'auto' to morning/evening.
+    """Resolve 'auto' to 'morning' or 'evening' using the server clock
+    (evening = 18:00–06:00).
 
-    RuleBasedOrchestrator doesn't branch on this, but AgentOrchestrator
-    passes it into the Haiku prompt as tone context.  Spec §6.1: never
-    hand `'auto'` down the stack."""
+    RuleBasedOrchestrator ignores this, but AgentOrchestrator passes it into
+    the Haiku prompt as tone context, so 'auto' is never passed on.
+    (oshi/context.py has its own copy of this logic, circadian_tag().)"""
     t = (tag or "auto").lower()
     if t == "morning":
         return "morning"
@@ -96,8 +112,8 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 AUDIO_DIR    = Path(__file__).parent.parent / "audio"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 if AUDIO_DIR.exists():
-    # Meditation tracks used by the game/mirror UIs.  Kept outside frontend/
-    # so the raw source files aren't confused with build artefacts.
+    # Music / ambient tracks used by the survey and games, served at /audio/.
+    # Sources and licences are listed in CREDITS.md.
     app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 
 # HR + RR detectors are algorithmically stateless — safe to share.
@@ -105,29 +121,37 @@ if AUDIO_DIR.exists():
 # instantiated per-connection inside the WebSocket handler.
 _hr_detector = HeartRateDetector()
 _rr_detector = RespirationDetector()
+# Intervention picker (NOT WIRED to the UI — see orchestrator/agent.py).
+# Known issue: being module-level, its no-repeat cooldown is shared by ALL
+# connected users, not tracked per user.
 _orchestrator = AgentOrchestrator()
 
 
+# ── Pages ────────────────────────────────────────────────────────────────
+# User-facing: the survey (landing page) and the four games.
+# Developer tools live under /dev/ (HTML in frontend/dev/).
+
 @app.get("/")
-async def root():
-    return FileResponse(FRONTEND_DIR / "index.html")
+@app.get("/survey")
+async def survey():
+    """Landing page — Oshi Survey & Retrospective.
 
+    Pre-session flow (sensation → intensity → body → emotion → offering)
+    gathers how the player feels, then sends them to the game they pick
+    (/game1–/game4). Games link back to /survey, which resumes at
+    r_intensity → reflection → complete (progress is kept in the browser's
+    sessionStorage). Fully usable with no API key — scripted fallbacks all
+    the way through (see backend/orchestrator/oshi/guardrails.py).
 
-@app.get("/observe")
-async def observe():
-    """Observational Mode — landmarks + breath/restlessness waveforms only."""
-    return FileResponse(FRONTEND_DIR / "observe.html")
-
-
-@app.get("/mirror")
-async def mirror():
-    """Mirror Mode — breath rendered as a responsive fire animation."""
-    return FileResponse(FRONTEND_DIR / "mirror.html")
+    Served at both "/" and "/survey": the games' "return to Oshi" links
+    point at /survey, so keep that URL working."""
+    return FileResponse(FRONTEND_DIR / "survey.html")
 
 
 @app.get("/game1")
 async def game1():
-    """Game 1 — gamified breath-fire experiment (scaffolded from Mirror Mode)."""
+    """Game 1 — Phoenix Ascent: breath drives a fire/phoenix visual.
+    Started as a copy of the Mirror dev page and has since diverged."""
     return FileResponse(FRONTEND_DIR / "game1.html")
 
 
@@ -139,10 +163,12 @@ async def game2():
 
 @app.get("/game3")
 async def game3():
-    """Game 3 — Follow the Flame: 4·4·4·4 box-breathing pacer.
+    """Game 3 — Follow the Flame: 4·4·4·4 box-breathing pacer
+    (inhale 4 s, hold 4 s, exhale 4 s, hold 4 s).
 
-    The flame LEADS on a fixed JS box clock; CV drives only its
-    character (setAdherence) and the end-of-session capture graph."""
+    The flame LEADS on a fixed clock in the browser; the camera only changes
+    how the flame looks (how closely the player's breath follows the pace)
+    and feeds the end-of-session breath graph."""
     return FileResponse(FRONTEND_DIR / "game3.html")
 
 
@@ -150,39 +176,69 @@ async def game3():
 async def game4():
     """Game 4 — Tap the Tide: guided EFT tapping session.
 
-    A fixed JS clock walks six tapping points at a chosen dwell for a chosen
-    number of cycles.  MediaPipe Face Mesh + Pose landmarks ONLY locate each
-    point on the player in the live mirrored feed — they never gate the clock.
-    No backend CV work: this game paints its overlay entirely in the browser."""
+    EFT ("Emotional Freedom Techniques") = tapping a sequence of points on
+    the face and upper body. A fixed clock in the browser walks six tapping
+    points; MediaPipe face + pose landmarks only LOCATE each point on the
+    player's mirrored video — they never speed up or slow down the clock.
+    The overlay is drawn entirely in the browser."""
     return FileResponse(FRONTEND_DIR / "game4.html")
 
 
-@app.get("/survey")
-async def survey():
-    """Oshi Survey & Retrospective (Weeks 4–6).
+@app.get("/dev/signals")
+async def dev_signals():
+    """Developer page — live dashboard of every sensed signal (BPM, breathing
+    rate, posture, restlessness, state label). The first place to look when
+    a signal seems wrong, and a template for debugging new signals."""
+    return FileResponse(FRONTEND_DIR / "dev" / "signals.html")
 
-    Pre-session flow (sensation → intensity → body → emotion → offering)
-    gathers the subjective input the orchestrator needs, hands off to
-    /game1 or /game2, then resumes at r_intensity → reflection → complete
-    on return.  Fully usable with zero API — scripted fallbacks all the
-    way through (see `backend/orchestrator/oshi/guardrails.py`)."""
-    return FileResponse(FRONTEND_DIR / "survey.html")
+
+@app.get("/dev/observe")
+async def dev_observe():
+    """Developer page — pose landmarks plus raw breath/restlessness waveforms."""
+    return FileResponse(FRONTEND_DIR / "dev" / "observe.html")
+
+
+@app.get("/dev/mirror")
+async def dev_mirror():
+    """Developer page — breath rendered as a responsive fire animation
+    (the visual that Game 1 grew out of)."""
+    return FileResponse(FRONTEND_DIR / "dev" / "mirror.html")
+
+
+# Old URLs, kept so bookmarks keep working.
+@app.get("/observe")
+async def observe_redirect():
+    return RedirectResponse("/dev/observe")
+
+
+@app.get("/mirror")
+async def mirror_redirect():
+    return RedirectResponse("/dev/mirror")
 
 
 @app.get("/health")
 async def health():
+    """Liveness check (used by the docker-compose healthcheck)."""
     return {"status": "ok", "service": "clarity-loop"}
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """The single WebSocket every page connects to.
+
+    Holds per-user state for the life of the connection (baseline, posture
+    window, Oshi narrator, survey answers so far) and dispatches each
+    incoming JSON message on its "type" field. Message formats are listed
+    in the module docstring. Unknown types are ignored; bad JSON is logged
+    and skipped, so one malformed message never drops the connection.
+    """
     await websocket.accept()
     logger.info("Client connected from %s", websocket.client)
 
     # Per-connection state — isolates baseline + restlessness window across users
     state_model = PhysiologicalStateModel()
     posture     = PostureDetector()
-    bpm_history: deque = deque(maxlen=5)
+    bpm_history: deque = deque(maxlen=5)   # last 5 BPM readings, for a rolling median
 
     # Per-connection Oshi narrator.  Scripted-only if ANTHROPIC_API_KEY is
     # unset — that mode is fully supported by the package and never raises.
@@ -192,10 +248,9 @@ async def websocket_endpoint(websocket: WebSocket):
     # the client needing to resend every field on every message.
     latest_subj: dict = {}
 
-    # Session history for the agent selector — cooldown lives on the
-    # rules orchestrator too, but we keep the record here for the
-    # intervention-selector Haiku call (Spec §6.1).
-    session_history = SessionHistory(interventions_tried=[])  # rolling median over last 5 readings
+    # Interventions recommended on this connection, passed to the Haiku
+    # picker as context (rules.py keeps its own separate cooldown).
+    session_history = SessionHistory(interventions_tried=[])
 
     try:
         while True:
@@ -209,6 +264,7 @@ async def websocket_endpoint(websocket: WebSocket):
             msg_type = msg.get("type")
 
             if msg_type == "hr_data":
+                # ── Camera signals → heart rate, breathing, state ─────
                 result = _hr_detector.process(
                     r=msg.get("r", []),
                     g=msg.get("g", []),
@@ -216,6 +272,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     buffer_window=msg.get("bufferWindow", 0),
                     fps=msg.get("fps"),
                 )
+                # Smooth BPM with a rolling median, discarding any single
+                # reading more than 40 BPM away from it (an rPPG glitch).
                 raw_bpm = result.get("bpm")
                 if raw_bpm is not None:
                     current_median = statistics.median(bpm_history) if bpm_history else raw_bpm
@@ -223,7 +281,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         bpm_history.append(raw_bpm)
                 smoothed_bpm = round(statistics.median(bpm_history), 1) if bpm_history else None
 
-                # Week 2: respiration — prefer chest pixel motion, fallback to green channel
+                # Breathing rate — prefers chest brightness, falls back to face green channel
                 rr_result = _rr_detector.process(
                     g=msg.get("g", []),
                     fps=msg.get("fps"),
@@ -264,6 +322,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 }))
 
             elif msg_type == "pose_data":
+                # Body landmarks (~5 fps). No reply — the latest posture is
+                # included in the next hr_result.
                 posture.push_landmarks(msg.get("landmarks"))
 
             elif msg_type == "ping":
@@ -271,10 +331,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif msg_type == "subjective_input":
                 # ── Oshi Survey ───────────────────────────────────────
-                # One inbound message per screen enter.  Reply with an
-                # `oshi_line` for the screen; if `path` is set (offering
-                # screen), ALSO reply with `intervention` from the
-                # orchestrator selector (Spec §6.1).  Both echo req_id.
+                # One inbound message each time a survey screen opens. Reply
+                # with an `oshi_line` for that screen (echoing req_id so the
+                # client can drop stale replies). On the offering screen
+                # with a `path`, ALSO reply with an `intervention` from the
+                # picker (not used by the UI yet — see agent.py).
                 latest_subj.update({k: v for k, v in msg.items()
                                     if k not in ("type",)})
 
@@ -288,9 +349,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Offering → intervention (only path where recommend() fires)
                 if screen == "offering" and msg.get("path"):
                     # Prefer client-aliased chip; fall back to server alias.
-                    raw = msg.get("sensation")
+                    raw_sensation = msg.get("sensation")
                     sens = (msg.get("sensation_alias")
-                            or _CHIP_ALIAS.get(raw, raw))
+                            or _CHIP_ALIAS.get(raw_sensation, raw_sensation))
                     physio_state = state_model.current_snapshot().state
                     time_of_day = _resolve_time_of_day(msg.get("time_of_day"))
 
@@ -323,10 +384,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif msg_type == "session_complete":
                 # ── Oshi Retrospective ────────────────────────────────
-                # Path-dependent (Spec §4.7): game1 may carry CV deltas;
-                # game2 sends intensity_pre/post only.  SessionResult's
-                # `available_signals` gates what the reflection prompt
-                # is allowed to reference.
+                # Sent when the player returns from a game to the survey.
+                # The schema allows game1 to include breath/restlessness
+                # before-and-after, but in practice every game currently
+                # sends intensity_pre/post only (see docs/KNOWN_ISSUES.md).
+                # SessionResult.available_signals limits the reflection to
+                # signals that were really measured.
                 session = SessionResult.from_dict(msg)
                 subj = SubjectiveInput.from_dict({
                     "sensation":    msg.get("sensation")    or latest_subj.get("sensation"),

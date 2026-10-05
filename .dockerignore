@@ -1,0 +1,31 @@
+# Keep secrets, local environments and dev-only files OUT of the Docker image.
+# The API key reaches the container at runtime via docker-compose `env_file`,
+# never by being baked into the image.
+
+# Secrets
+.env
+*.env
+!.env.example
+
+# Local Python environments / caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Git + editor
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Runtime data (mounted as a volume instead)
+backend/data/
+*.db
+*.sqlite3
+
+# Not needed to run the app
+tests/
+docs/
+WORKLOG.md

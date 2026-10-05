@@ -1,23 +1,21 @@
-# Clarity Loop backend dependencies
-# Python 3.10+
+# Clarity Loop backend dependencies — Python 3.10+
+#   pip install -r backend/requirements.txt
+# (Test tools live in requirements-dev.txt.)
+#
+# Note: camera capture, face tracking and pose tracking (MediaPipe) all run
+# in the BROWSER, so no OpenCV / MediaPipe Python packages are needed here.
 
-# Web framework + WebSockets
+# Web server + WebSocket endpoint
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
 
-# Signal processing (used by CV pipelines)
+# Signal processing for heart-rate and breathing detection
 numpy>=1.26.0
 scipy>=1.12.0
 
-# Environment variables
+# Loads ANTHROPIC_API_KEY from the .env file
 python-dotenv>=1.0.0
 
-# --- Week 2 additions (uncomment when ready) ---
-# opencv-python-headless>=4.9.0   # server-side frame processing
-# peakutils>=1.3.4                 # peak detection for respiration
-
-# --- Week 3 additions ---
-# mediapipe>=0.10.9                # pose/face mesh landmarks
-
-# --- Week 5 additions ---
-anthropic>=0.21.0                # Claude Haiku orchestrator + Oshi narrator
+# Claude API client — Oshi narration + intervention picker (optional at runtime:
+# with no API key the app falls back to scripted lines)
+anthropic>=0.21.0

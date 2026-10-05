@@ -1,25 +1,35 @@
 """
-Agentic intervention orchestrator via Claude Haiku.
+Intervention picker using Claude Haiku, with rules.py as the fallback.
 
-Design intent (from 7-week plan):
-    Input  : physio snapshot + subjective input + session history
-    Output : intervention_id + param overrides + 1–2 sentence reasoning
+┌─ NOT WIRED ────────────────────────────────────────────────────────────┐
+│ main.py calls recommend() when the survey reaches its "offering" screen │
+│ and sends the result to the browser as {type: "intervention"}. The     │
+│ browser stores it in sessionStorage but NEVER READS IT — the player     │
+│ chooses a game themselves. So this module's output currently has no     │
+│ effect on what the user sees. See docs/KNOWN_ISSUES.md.                 │
+└─────────────────────────────────────────────────────────────────────────┘
 
-This module is the INTERVENTION SELECTOR only.  Oshi's per-screen
-narration voice lives in ``backend/orchestrator/oshi/`` (OshiNarrator)
-and is a separate Haiku call — different return shape, different
-guardrails, wired directly into ``main.py``.  Do not conflate the two.
+    Input  : physiological state label + survey answers + session history
+    Output : intervention_id + parameter overrides + 1–2 sentence reasoning
 
-Tone guidelines for the reasoning line (matches the on-voice lines
-already in ``RuleBasedOrchestrator._reason()``):
-    - phenomenological language: sensations, textures, spatial metaphors
+This module is the INTERVENTION PICKER only. Oshi's spoken lines come from
+``backend/orchestrator/oshi/`` (OshiNarrator), a separate Haiku call with a
+different return shape and its own guardrails. Do not conflate the two.
+
+Tone for the reasoning line (same as ``RuleBasedOrchestrator._reason()``):
+    - experiential language: sensations, textures, spatial metaphors
     - NOT clinical/diagnostic: never "elevated heart rate detected"
-    - reasoning ≤ 2 sentences; feels like a whisper, not a paragraph
+    - at most 2 sentences
 
 Fallback: on any Haiku failure (missing key, missing SDK, timeout, bad
-JSON, unknown intervention id, filter reject), the recommendation from
-``RuleBasedOrchestrator`` is used verbatim.  Both paths return the SAME
+JSON, unknown intervention id, repeated pick), the recommendation from
+``RuleBasedOrchestrator`` is used instead. Both paths return the SAME
 shape, ``OrchestratorResult``, so callers never need to branch.
+
+Known duplication: the Haiku client setup and model id are repeated in
+oshi/narrator.py, and the banned-word list in _SYSTEM_PROMPT overlaps
+oshi/persona.py FORBIDDEN_WORDS (this reasoning text is NOT run through the
+Oshi guardrails). See docs/KNOWN_ISSUES.md.
 """
 
 from __future__ import annotations
@@ -36,6 +46,9 @@ logger = logging.getLogger("clarity_loop.agent")
 
 @dataclass
 class SessionHistory:
+    """Interventions recommended so far on one WebSocket connection, with the
+    survey intensity before and (once the session completes) after. Passed
+    to Haiku so it can avoid repeating something that didn't help."""
     interventions_tried: list[dict] = field(default_factory=list)
     # each entry: {"id": str, "pre_intensity": int|None, "post_intensity": int|None}
 
@@ -95,9 +108,8 @@ class AgentOrchestrator:
     ) -> OrchestratorResult:
         """Choose an intervention. Live Haiku first, rules on any failure.
 
-        The rules-path fallback drops ``session_history`` / ``time_of_day``
-        (its ``recommend()`` takes only 5 args) — that is intentional and
-        matches Spec §6.1.
+        The rules fallback ignores ``session_history`` and ``time_of_day``
+        (its ``recommend()`` takes only 5 args) — that is intentional.
         """
         rules_fallback = lambda: self._rules.recommend(
             physio_state, emotion, body_region, sensations, intensity
@@ -128,7 +140,7 @@ class AgentOrchestrator:
             return rules_fallback()
 
         # Guard: unknown intervention id → fall back rather than ship an
-        # unrenderable one.  Spec §6.1: keep the wire field `reasoning`.
+        # unrenderable one.
         iv_id = result_dict.get("intervention_id")
         if iv_id not in INTERVENTIONS:
             logger.debug("agent returned unknown intervention_id=%r — rules fallback.", iv_id)
@@ -174,6 +186,8 @@ class AgentOrchestrator:
 
     @staticmethod
     def _build_user(ctx: dict) -> str:
+        """Format the context dict as the user message for Haiku. Only labels
+        and survey answers are sent — never raw camera or signal data."""
         return (
             f"Physiological state: {ctx['physio_state']} (may be 'unknown' when no CV pipeline is running).\n"
             f"Time of day: {ctx['time_of_day']}.\n"

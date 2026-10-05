@@ -1,5 +1,9 @@
 /**
- * Clarity Loop — Game 2.  Ambient bird-call counting meditation.
+ * Clarity Loop — Game 2: Grandmaster's Count  (page: /game2)
+ * An ambient bird-call counting meditation.
+ *
+ * This game uses NO camera and NO WebSocket — it is audio + clicks only, so
+ * its reflection back on /survey is based on the intensity ring alone.
  *
  * The user picks a session duration and a mode:
  *   INTERACTIVE — click anywhere each time a bird call is heard
@@ -7,7 +11,8 @@
  *
  * Session mechanics:
  *   • Ambient waterfall loops continuously at ~50% volume
- *   • Bird calls schedule at random intervals in [15, 45] seconds
+ *   • Bird calls schedule at random intervals in
+ *     [BIRD_MIN_INTERVAL_S, BIRD_MAX_INTERVAL_S] seconds (15–37 s)
  *   • ~15% of calls become a "cluster" — a second call 2-4 s later
  *   • Each call picks randomly between the two bird-call samples and
  *     plays at a random volume in [0.40, 0.80] to simulate calls from

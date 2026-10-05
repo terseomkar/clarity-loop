@@ -1,12 +1,21 @@
-version: "3.9"
-
+# Run with:  docker compose up --build      then open http://localhost:8000
 services:
   backend:
     build: .
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/data:/app/backend/data   # persist SQLite sessions
+      # Reserved for the SQLite session store (backend/db/session.py).
+      # That store is not wired up yet, so this folder currently stays empty.
+      - ./backend/data:/app/backend/data
     env_file:
-      - .env
+      # Supplies ANTHROPIC_API_KEY at runtime. Optional: without a .env file
+      # the app still runs, with Oshi using its scripted (offline) lines.
+      - path: .env
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped

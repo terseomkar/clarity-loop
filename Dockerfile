@@ -1,3 +1,5 @@
+# Production-style image for Clarity Loop. Usually run via docker-compose.yml.
+# `.dockerignore` keeps `.env` (API key), `.venv/`, tests and docs out of the image.
 FROM python:3.11-slim
 
 WORKDIR /app

@@ -1,8 +1,8 @@
 """
 Per-step context injection — the `user` half of each Haiku call.
 
-Ports the prototype's `_contextFor(screen)` + `_circadian()` to the server.
-The `system` prompt (persona) stays constant; this assembles the per-screen
+Server-side port of the design prototype's `_contextFor(screen)` and
+`_circadian()` helpers. The `system` prompt (persona) stays constant; this assembles the per-screen
 user message: environment tone + what's been gathered + a tight instruction
 for THIS step.
 
@@ -48,8 +48,9 @@ def _gathered(a: SubjectiveInput) -> str:
 
 
 # What each step is FOR. One line each. No script — the persona voices it.
-# The subjective-survey steps carry a light IFS cue: help the player relate to
-# the experience AS a part (something they can turn toward), not as all of them.
+# The subjective-survey steps carry a light IFS cue (Internal Family Systems —
+# see oshi/__init__.py): help the player relate to the experience AS a part
+# (something they can turn toward), not as all of them.
 _STEP_INTENT: dict[str, str] = {
     "welcome":
         "the player has just arrived. greet them and make it safe for any part "

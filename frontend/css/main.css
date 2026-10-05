@@ -1,5 +1,21 @@
-/* Clarity Loop — base styles */
-/* Design language: dark (#07080f), muted purples, Georgia serif for text */
+/* Clarity Loop — the ONE stylesheet shared by every page.
+   Design language: dark (#07080f), muted purples, Georgia serif for text.
+
+   Contents (search for the heading text to jump to a section):
+     1. Base tokens (:root colours) + body
+     2. "Dev / validation view"         — dev/signals.html
+     3. "Shared top navigation"         — every page
+     4. "Observational Mode layout"     — dev/observe.html
+     5. "Mirror Mode"                   — dev/mirror.html, also game1.html
+     6. "Game 1 (Phoenix Ascent)"       — game1.html (progress bar, session modal)
+     7. "Observational Mode trend graphs"
+     8. "Game 2 — Grandmaster Oshi"     — game2.html
+     9. "OSHI SURVEY & RETROSPECTIVE"   — survey.html (the landing page)
+    10. "GAME 3 — Follow the Flame"     — game3.html (also reuses game2-* classes)
+    11. "Game 4 (Tap the Tide)"         — game4.html (also reuses game2/game3 classes)
+
+   Adding a new game: add a new banner section at the end rather than
+   editing another game's classes (several games already share game2-*). */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -165,7 +181,8 @@ body {
   transform: scaleX(-1);
 }
 
-/* ── Mode navigation (Sensing / Observation) ─────────────────────── */
+/* ── Shared top navigation (same markup on every page) ───────────────
+   Home + games first; a faint "dev" divider; then the developer pages. */
 .mode-nav {
   display: flex;
   gap: 4px;
@@ -191,6 +208,19 @@ body {
   border-color: var(--border);
   background: var(--bg-card);
 }
+/* Divider before the developer pages, and those pages' links, are dimmer so
+   the user-facing pages stay primary. */
+.mode-nav-sep {
+  align-self: center;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  opacity: 0.5;
+  padding: 0 4px 0 12px;
+  border-left: 1px solid var(--border);
+}
+.mode-link.dev-link:not(.active) { opacity: 0.6; }
 
 /* ── Observational Mode layout (wider than .dev-view) ────────────── */
 .observe-view {
@@ -441,7 +471,7 @@ body {
 }
 .post-session-btn:active { transform: translateY(0); }
 
-/* Session capture modal — dual-trace graph of raw vs stabilized depth */
+/* Session capture modal — dual-trace graph of raw vs amplified depth */
 .session-modal {
   position: fixed;
   inset: 0;

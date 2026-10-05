@@ -12,8 +12,11 @@ The narrator calls sanitize() on every Haiku line: clamp → strip → filter.
 If it fails, the scripted line stays. The flow is fully usable with zero API.
 
 VOICE PASS: the scripted lines below were rewritten to be direct and potent —
-the screen shows the instruction, so Oshi says the one thing it can't. See the
-before/after table in README.md.
+the screen shows the instruction, so Oshi says the one thing it can't. (The
+older, longer versions survive in frontend/js/oshi_flow.js's own SCRIPTED,
+which the browser uses only if the backend never answers.)
+
+These rules are BINDING project-wide (see CLAUDE.md, "Design rules").
 """
 
 from __future__ import annotations

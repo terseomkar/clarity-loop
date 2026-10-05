@@ -1,5 +1,8 @@
 /**
- * Clarity Loop — Game 4.  Tap the Tide — a guided EFT tapping session.
+ * Clarity Loop — Game 4: Tap the Tide  (page: /game4)
+ * A guided EFT tapping session. EFT ("Emotional Freedom Techniques") means
+ * tapping a sequence of points on the face and upper body while naming a
+ * feeling.
  *
  * The clock LEADS.  A fixed JS timer walks six tapping points (Top of Head,
  * Eyebrow, Under Eye, Chin, Collarbone, Under Arm) at a fixed dwell (default
@@ -15,7 +18,8 @@
  * Screens:  SETUP → COUNTDOWN(3·2·1) → ACTIVE(feed + pinned marker + timer ring
  *                                             + affirmation) → COMPLETE → /survey
  *
- * Ported verbatim from the prototype (docs/game4/Game 4 - Tap the Tide.dc.html):
+ * Ported verbatim from the design prototype (kept for history at
+ * docs/archive/Game 4 - Tap the Tide.dc.html; it does not render on its own):
  *   POINTS, DEFAULT_PTS, _mx, _onFace, _onPose, _loop, _positionMarkers,
  *   _applyActive, _resolvedCycles, _resolvedSpp.  Two stand-ins replaced:
  *   the `emotion` prop → the feeling chosen in the subjective survey; the
