@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- Page: /game4 — Game 4: Tap the Tide. Guided EFT tapping session.
+     Logic: js/game4.js (+ js/camera.js, js/websocket.js).
+     Map of all pages: frontend/CLAUDE.md -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -12,14 +15,16 @@
 <div class="g4-bg"></div>
 
 <nav class="mode-nav mirror-nav">
-  <a href="/survey" class="mode-link">Survey</a>
-  <a href="/" class="mode-link">Sensing</a>
-  <a href="/observe" class="mode-link">Observation</a>
-  <a href="/mirror" class="mode-link">Mirror</a>
+  <!-- Shared nav: same links on every page (see frontend/CLAUDE.md). -->
+  <a href="/" class="mode-link">Home</a>
   <a href="/game1" class="mode-link">Game 1</a>
   <a href="/game2" class="mode-link">Game 2</a>
   <a href="/game3" class="mode-link">Game 3</a>
   <a href="/game4" class="mode-link active">Game 4</a>
+  <span class="mode-nav-sep" aria-hidden="true">dev</span>
+  <a href="/dev/signals" class="mode-link dev-link">Signals</a>
+  <a href="/dev/observe" class="mode-link dev-link">Observe</a>
+  <a href="/dev/mirror" class="mode-link dev-link">Mirror</a>
 </nav>
 
 <!-- =========================================================
@@ -183,7 +188,7 @@
   </div>
 </div>
 
-<!-- MediaPipe Face Mesh + Pose — same CDN + versions as the Sensing page -->
+<!-- MediaPipe Face Mesh + Pose — same CDN + versions as the dev Signals page -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script src="/static/js/websocket.js"></script>

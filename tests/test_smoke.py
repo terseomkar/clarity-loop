@@ -19,14 +19,21 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 # ── Page routes ──────────────────────────────────────────────────────────
 # (url, html file under frontend/ that the route must serve)
 PAGE_ROUTES = [
-    ("/",        "index.html"),
-    ("/survey",  "survey.html"),
-    ("/observe", "observe.html"),
-    ("/mirror",  "mirror.html"),
-    ("/game1",   "game1.html"),
-    ("/game2",   "game2.html"),
-    ("/game3",   "game3.html"),
-    ("/game4",   "game4.html"),
+    ("/",             "survey.html"),       # landing page
+    ("/survey",       "survey.html"),       # games link back here
+    ("/game1",        "game1.html"),
+    ("/game2",        "game2.html"),
+    ("/game3",        "game3.html"),
+    ("/game4",        "game4.html"),
+    ("/dev/signals",  "dev/signals.html"),
+    ("/dev/observe",  "dev/observe.html"),
+    ("/dev/mirror",   "dev/mirror.html"),
+]
+
+# Old URLs that now redirect.
+REDIRECTS = [
+    ("/observe", "/dev/observe"),
+    ("/mirror",  "/dev/mirror"),
 ]
 
 
@@ -37,14 +44,34 @@ def test_page_routes_serve_expected_file(client, url, html_file):
     assert resp.content == (FRONTEND / html_file).read_bytes()
 
 
+@pytest.mark.parametrize("old,new", REDIRECTS)
+def test_old_urls_redirect(client, old, new):
+    resp = client.get(old, follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert resp.headers["location"] == new
+
+
+def test_every_html_page_has_a_route(client):
+    """Catches a new page added to frontend/ without a route (or vice versa)."""
+    served = {f for _, f in PAGE_ROUTES}
+    on_disk = {p.relative_to(FRONTEND).as_posix() for p in FRONTEND.rglob("*.html")}
+    assert on_disk == served
+
+
 def test_health(client):
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
 
-def test_static_css_served(client):
-    assert client.get("/static/css/main.css").status_code == 200
+@pytest.mark.parametrize("url", [
+    "/static/css/main.css",
+    "/static/img/rune_circle.png",
+    "/static/video/oshi.mp4",
+    "/audio/20221__ls__bird-call.wav",
+])
+def test_static_assets_served(client, url):
+    assert client.get(url).status_code == 200
 
 
 # ── Synthetic camera signal ──────────────────────────────────────────────

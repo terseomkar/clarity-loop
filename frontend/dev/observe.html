@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- Page: /dev/observe — DEVELOPER: pose landmarks + raw breath/restlessness waveforms.
+     Logic: js/observe.js (+ js/camera.js, js/websocket.js).
+     Map of all pages: frontend/CLAUDE.md -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -11,14 +14,16 @@
 <div class="observe-view">
 
   <nav class="mode-nav">
-    <a href="/survey" class="mode-link">Survey</a>
-    <a href="/" class="mode-link">Sensing</a>
-    <a href="/observe" class="mode-link active">Observation</a>
-    <a href="/mirror" class="mode-link">Mirror</a>
+    <!-- Shared nav: same links on every page (see frontend/CLAUDE.md). -->
+    <a href="/" class="mode-link">Home</a>
     <a href="/game1" class="mode-link">Game 1</a>
     <a href="/game2" class="mode-link">Game 2</a>
     <a href="/game3" class="mode-link">Game 3</a>
     <a href="/game4" class="mode-link">Game 4</a>
+    <span class="mode-nav-sep" aria-hidden="true">dev</span>
+    <a href="/dev/signals" class="mode-link dev-link">Signals</a>
+    <a href="/dev/observe" class="mode-link dev-link active">Observe</a>
+    <a href="/dev/mirror" class="mode-link dev-link">Mirror</a>
   </nav>
 
   <div class="dev-header">

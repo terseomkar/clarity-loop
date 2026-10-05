@@ -70,7 +70,7 @@ except ImportError:
     pass
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.cv.heart_rate import HeartRateDetector
@@ -112,8 +112,8 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 AUDIO_DIR    = Path(__file__).parent.parent / "audio"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 if AUDIO_DIR.exists():
-    # Meditation tracks used by the game/mirror UIs.  Kept outside frontend/
-    # so the raw source files aren't confused with build artefacts.
+    # Music / ambient tracks used by the survey and games, served at /audio/.
+    # Sources and licences are listed in CREDITS.md.
     app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 
 # HR + RR detectors are algorithmically stateless — safe to share.
@@ -127,26 +127,31 @@ _rr_detector = RespirationDetector()
 _orchestrator = AgentOrchestrator()
 
 
+# ── Pages ────────────────────────────────────────────────────────────────
+# User-facing: the survey (landing page) and the four games.
+# Developer tools live under /dev/ (HTML in frontend/dev/).
+
 @app.get("/")
-async def root():
-    return FileResponse(FRONTEND_DIR / "index.html")
+@app.get("/survey")
+async def survey():
+    """Landing page — Oshi Survey & Retrospective.
 
+    Pre-session flow (sensation → intensity → body → emotion → offering)
+    gathers how the player feels, then sends them to the game they pick
+    (/game1–/game4). Games link back to /survey, which resumes at
+    r_intensity → reflection → complete (progress is kept in the browser's
+    sessionStorage). Fully usable with no API key — scripted fallbacks all
+    the way through (see backend/orchestrator/oshi/guardrails.py).
 
-@app.get("/observe")
-async def observe():
-    """Observational Mode — landmarks + breath/restlessness waveforms only."""
-    return FileResponse(FRONTEND_DIR / "observe.html")
-
-
-@app.get("/mirror")
-async def mirror():
-    """Mirror Mode — breath rendered as a responsive fire animation."""
-    return FileResponse(FRONTEND_DIR / "mirror.html")
+    Served at both "/" and "/survey": the games' "return to Oshi" links
+    point at /survey, so keep that URL working."""
+    return FileResponse(FRONTEND_DIR / "survey.html")
 
 
 @app.get("/game1")
 async def game1():
-    """Game 1 — gamified breath-fire experiment (scaffolded from Mirror Mode)."""
+    """Game 1 — Phoenix Ascent: breath drives a fire/phoenix visual.
+    Started as a copy of the Mirror dev page and has since diverged."""
     return FileResponse(FRONTEND_DIR / "game1.html")
 
 
@@ -158,10 +163,12 @@ async def game2():
 
 @app.get("/game3")
 async def game3():
-    """Game 3 — Follow the Flame: 4·4·4·4 box-breathing pacer.
+    """Game 3 — Follow the Flame: 4·4·4·4 box-breathing pacer
+    (inhale 4 s, hold 4 s, exhale 4 s, hold 4 s).
 
-    The flame LEADS on a fixed JS box clock; CV drives only its
-    character (setAdherence) and the end-of-session capture graph."""
+    The flame LEADS on a fixed clock in the browser; the camera only changes
+    how the flame looks (how closely the player's breath follows the pace)
+    and feeds the end-of-session breath graph."""
     return FileResponse(FRONTEND_DIR / "game3.html")
 
 
@@ -169,23 +176,44 @@ async def game3():
 async def game4():
     """Game 4 — Tap the Tide: guided EFT tapping session.
 
-    A fixed JS clock walks six tapping points at a chosen dwell for a chosen
-    number of cycles.  MediaPipe Face Mesh + Pose landmarks ONLY locate each
-    point on the player in the live mirrored feed — they never gate the clock.
-    No backend CV work: this game paints its overlay entirely in the browser."""
+    EFT ("Emotional Freedom Techniques") = tapping a sequence of points on
+    the face and upper body. A fixed clock in the browser walks six tapping
+    points; MediaPipe face + pose landmarks only LOCATE each point on the
+    player's mirrored video — they never speed up or slow down the clock.
+    The overlay is drawn entirely in the browser."""
     return FileResponse(FRONTEND_DIR / "game4.html")
 
 
-@app.get("/survey")
-async def survey():
-    """Oshi Survey & Retrospective (Weeks 4–6).
+@app.get("/dev/signals")
+async def dev_signals():
+    """Developer page — live dashboard of every sensed signal (BPM, breathing
+    rate, posture, restlessness, state label). The first place to look when
+    a signal seems wrong, and a template for debugging new signals."""
+    return FileResponse(FRONTEND_DIR / "dev" / "signals.html")
 
-    Pre-session flow (sensation → intensity → body → emotion → offering)
-    gathers the subjective input the orchestrator needs, hands off to
-    /game1 or /game2, then resumes at r_intensity → reflection → complete
-    on return.  Fully usable with zero API — scripted fallbacks all the
-    way through (see `backend/orchestrator/oshi/guardrails.py`)."""
-    return FileResponse(FRONTEND_DIR / "survey.html")
+
+@app.get("/dev/observe")
+async def dev_observe():
+    """Developer page — pose landmarks plus raw breath/restlessness waveforms."""
+    return FileResponse(FRONTEND_DIR / "dev" / "observe.html")
+
+
+@app.get("/dev/mirror")
+async def dev_mirror():
+    """Developer page — breath rendered as a responsive fire animation
+    (the visual that Game 1 grew out of)."""
+    return FileResponse(FRONTEND_DIR / "dev" / "mirror.html")
+
+
+# Old URLs, kept so bookmarks keep working.
+@app.get("/observe")
+async def observe_redirect():
+    return RedirectResponse("/dev/observe")
+
+
+@app.get("/mirror")
+async def mirror_redirect():
+    return RedirectResponse("/dev/mirror")
 
 
 @app.get("/health")

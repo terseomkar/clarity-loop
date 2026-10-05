@@ -1,10 +1,18 @@
 /**
- * Clarity Loop WebSocket client.
- * Auto-reconnects on close. All outbound messages go through send().
+ * Clarity Loop WebSocket client — ClaritySocket.  Shared by every page.
+ * Connects to the backend's /ws endpoint, auto-reconnects every 2 s on
+ * close, and parses incoming JSON before handing it to your callback.
+ * Message types are documented in backend/main.py and CLAUDE.md.
  *
  * Usage:
  *   const ws = new ClaritySocket((msg) => app.onMessage(msg));
  *   ws.send({ type: 'hr_data', r: [...], g: [...], b: [...], bufferWindow: N });
+ *
+ * Also fires DOM events 'ws:open' / 'ws:close' on `document` so pages can
+ * show connection status.
+ *
+ * Known issue: the URL is hard-coded to ws://, which browsers block on an
+ * https:// page. See docs/KNOWN_ISSUES.md before deploying over HTTPS.
  */
 class ClaritySocket {
   constructor(onMessage) {

@@ -1,18 +1,20 @@
 /**
- * Clarity Loop — App state machine.
+ * Clarity Loop — Signals dashboard  (developer page: /dev/signals)
  *
- * States (full flow — many implemented in later weeks):
- *   HOME          : seed screen, spiral visual (Week 6)
- *   TRIGGERED     : CV pipeline starts, baseline collection begins
- *   SUBJ_INPUT    : 4-step subjective input flow (Week 4)
- *   INTERVENTION  : active intervention module (Week 4)
- *   POST_SESSION  : post-check + session save (Week 5/6)
+ * Starts the camera, streams signals to the backend, and shows every value
+ * that comes back in `hr_result`: heart rate (BPM), breathing rate, signal
+ * quality, posture, restlessness, the state label and the baseline.
  *
- * Week 2: camera auto-starts, both HR and RR update live.
+ * This is a developer view, so it shows raw numbers on purpose. User-facing
+ * pages must follow the "trends, not digits" principle instead
+ * (docs/design-principles.md). When you add a new signal (e.g. EEG), showing
+ * it here first is the quickest way to check it end to end.
  */
 
+// Set to true to log every hr_result's HR / RR values to the console.
+const SIGNALS_DEBUG = false;
+
 const App = (() => {
-  let state = 'HOME';
   let camera = null;
   let socket = null;
   let latestMetrics = {
@@ -24,7 +26,8 @@ const App = (() => {
     state: null,
   };
 
-  // EMA smoothing (alpha=0.3 → converges in ~5 updates)
+  // EMA (exponential moving average) smoothing for the displayed numbers:
+  // new = 0.3 × latest + 0.7 × previous → settles within ~5 updates.
   let _smoothedBpm = null;
   let _smoothedRr  = null;
   const _BPM_ALPHA = 0.3;
@@ -83,10 +86,12 @@ const App = (() => {
         console.log('[baseline] LOCKED', msg.baseline);
       }
 
-      console.log('[hr]', `bpm=${msg.bpm}`, `q=${msg.signal_quality}`, `snr=${msg.snr}`);
-      console.log('[rr]', `bpm=${msg.rr_bpm}`, `q=${msg.rr_quality}`, `snr=${msg.rr_snr}`, `peak_hz=${msg.rr_peak_hz}`);
+      if (SIGNALS_DEBUG) {
+        console.log('[hr]', `bpm=${msg.bpm}`, `q=${msg.signal_quality}`, `snr=${msg.snr}`);
+        console.log('[rr]', `bpm=${msg.rr_bpm}`, `q=${msg.rr_quality}`, `snr=${msg.rr_snr}`, `peak_hz=${msg.rr_peak_hz}`);
+      }
 
-      // Respiration rate (Week 2)
+      // Breathing rate
       if (msg.rr_bpm != null) {
         _smoothedRr = _smoothedRr == null
           ? msg.rr_bpm
@@ -97,7 +102,7 @@ const App = (() => {
       }
       latestMetrics.rrQuality = msg.rr_quality;
 
-      // Posture + restlessness (Week 3)
+      // Posture + restlessness
       latestMetrics.posture = msg.posture || null;
 
       _renderMetrics();
@@ -129,7 +134,7 @@ const App = (() => {
     if (stateEl) stateEl.textContent = latestMetrics.state || 'unknown';
     if (faceEl)  faceEl.textContent  = latestMetrics.faceDetected ? 'face tracked' : 'no face';
 
-    // Posture + restlessness (Week 3)
+    // Posture + restlessness
     const restlessEl = document.getElementById('restless-value');
     const postureEl  = document.getElementById('posture-lines');
     const poseEl     = document.getElementById('pose-status');

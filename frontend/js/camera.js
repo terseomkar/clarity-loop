@@ -1,26 +1,35 @@
 /**
- * Clarity Loop camera module — Week 2.
+ * Clarity Loop camera module — ClarityCamera.  Shared by every page that
+ * senses the body (dev pages + games 1, 3, 4).
  *
- * Two ROIs are extracted every frame:
+ * Privacy note: raw video never leaves the browser. Only small averages and
+ * landmark coordinates are sent to the backend.
+ *
+ * Two ROIs ("regions of interest", i.e. rectangles of the video frame) are
+ * averaged every frame:
  *
  *   Face ROI  — forehead + cheeks (upper 55% of face bounding box)
- *               → RGB channel averages → heart rate pipeline (rPPG)
+ *               → R/G/B channel averages → heart rate (rPPG, see
+ *                 backend/cv/heart_rate.py)
  *
  *   Chest ROI — shoulders / upper torso (below face, or lower half of frame)
- *               → luminance averages → respiration pipeline
- *               Same technique as the Respiration-Rate-Detection reference:
- *               mean pixel intensity oscillates as the chest rises and falls.
+ *               → brightness averages → breathing rate
+ *               The average brightness of this patch rises and falls slightly
+ *               as the chest moves with each breath.
  *
- * MediaPipe Face Mesh drives both ROIs.  Falls back to static crops when no
- * face is detected.
+ * MediaPipe Face Mesh (Google's in-browser face tracker) places both ROIs.
+ * Falls back to fixed crops when no face is detected.
  *
- * MediaPipe Pose runs in parallel (Week 3) at ~5 fps.  We forward only the
- * seven front-view landmarks used by the posture pipeline (0, 7, 8, 11, 12,
- * 23, 24) — the backend computes posture metrics + restlessness variance.
+ * MediaPipe Pose runs alongside at ~5 fps. Only the seven front-view
+ * landmarks used for posture (0 nose, 7/8 ears, 11/12 shoulders, 23/24 hips)
+ * are forwarded; backend/cv/posture.py turns them into posture + restlessness.
  *
- * WebSocket messages:
+ * WebSocket messages sent (when `camera.socket` is set):
  *   ~1/s : { type:'hr_data',   r:[…], g:[…], b:[…], chest:[…], bufferWindow, fps }
  *   ~5/s : { type:'pose_data', landmarks: { "0":{x,y,visibility}, ... } }
+ *
+ * Pages that need the raw signals directly (e.g. for instant visuals) pass
+ * the onChestSample / onPoseSample / onFaceSample callbacks below.
  */
 
 class ClarityCamera {
@@ -72,7 +81,7 @@ class ClarityCamera {
     this._latestPose    = null;  // last 7 landmarks {idx: {x, y, visibility}}
     this._prevPoseForMotion = null;  // previous landmarks, for frame-to-frame motion
 
-    this.socket = null;   // injected by app.js
+    this.socket = null;   // a ClaritySocket; each page sets `camera.socket = socket`
   }
 
   // ----------------------------------------------------------------
@@ -95,7 +104,7 @@ class ClarityCamera {
       const W = this._canvas.width;
       const H = this._canvas.height;
 
-      // Default face ROI: centre-crop (Week 1 fallback)
+      // Default face ROI: centre-crop (used until / unless a face is tracked)
       this._centerCropRoi = {
         x: Math.floor(W * 0.35),
         y: Math.floor(H * 0.15),
@@ -170,7 +179,7 @@ class ClarityCamera {
   }
 
   // ----------------------------------------------------------------
-  // MediaPipe Pose (Week 3 — posture + restlessness)
+  // MediaPipe Pose (posture + restlessness)
   // ----------------------------------------------------------------
 
   _initPose() {

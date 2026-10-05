@@ -1,26 +1,31 @@
 /**
- * Oshi Survey & Retrospective — vanilla-JS port of the Claude Design
- * prototype (docs/oshi/Oshi Survey & Retrospective.dc.html).
+ * Oshi Survey & Retrospective — the landing page's logic  (page: / and /survey)
+ *
+ * Vanilla-JS port of a design prototype made in Claude Design (kept for
+ * history at docs/archive/Oshi Survey & Retrospective.dc.html; it does not
+ * render on its own).
  *
  * Flow:
  *   welcome → sensation → intensity → body → emotion → offering
- *          → [redirect to /game1 or /game2] → r_intensity → reflection → complete
+ *          → [redirect to the chosen game, /game1–/game4]
+ *          → (player clicks "with grandmaster oshi" in the game, back to /survey)
+ *          → r_intensity → reflection → complete
  *
- * The game pages don't yet own the retrospective — this survey page resumes
- * automatically when the player returns (session state is stashed in
- * sessionStorage, keyed by CS_SURVEY_KEY).  Once game1.html / game2.html
- * gain their own retrospective triggers, they can post the same fields
- * directly instead of round-tripping through /survey.
+ * The games don't run the retrospective themselves. This page resumes
+ * automatically when the player returns: the answers are kept in the
+ * browser's sessionStorage under CS_SURVEY_KEY. (game4.js also reads that
+ * key directly.)
  *
- * Two-layer voice (Spec §7):
- *   Layer 1 — scripted line paints INSTANTLY on screen enter (zero API).
- *   Layer 2 — backend Haiku upgrade arrives via `oshi_line` and replaces
- *             it with a typewriter reveal.  Stale replies drop via req_id.
+ * Oshi's two-layer voice:
+ *   Layer 1 — a scripted line (SCRIPTED below) paints if no live line arrives
+ *             within SCRIPTED_FALLBACK_MS (works with no API at all).
+ *   Layer 2 — the backend sends an `oshi_line` (live Haiku, or the server's
+ *             own scripted line) which is revealed with a typewriter effect.
+ *             Stale replies are dropped by comparing req_id.
  *
- * All content constants (PERSONA, CHIP_WORDS, PATHS, INSTRUCTIONS,
- * SCRIPTED, FWHEEL) are ported verbatim from the prototype.  PERSONA
- * lives here for reference only — the SERVER's copy in
- * backend/orchestrator/oshi/persona.py is authoritative for calls.
+ * Content constants (CHIP_WORDS, PATHS, INSTRUCTIONS, SCRIPTED, FWHEEL) are
+ * ported from the prototype. Oshi's persona text lives only on the server
+ * (backend/orchestrator/oshi/master-oshi-ifs-soul-system-prompt.md).
  */
 
 /* eslint-disable no-console */
@@ -33,10 +38,10 @@
 
   const CHIP_WORDS = ['tightness','heavy','jittery','pressure','numbness','activated','spacious','cold'];
 
-  // Chip → rule-key alias (Spec §4.2): four chips already match rule keys
-  // directly; jittery→buzzing, heavy→pressure.  activated/spacious hit no
-  // somatic rule (free-text only).  Client stores the aliased token for
-  // the server; the ORIGINAL word is what Oshi still sees for narration.
+  // Chip word → the word the backend's rules.py decision table expects.
+  // Four chips already match directly; jittery→buzzing, heavy→pressure.
+  // activated/spacious match no rule. The client sends the translated word
+  // as `sensation_alias`; Oshi's narration still uses the ORIGINAL word.
   const CHIP_ALIAS = { jittery: 'buzzing', heavy: 'pressure' };
 
   const PATHS = [
@@ -55,9 +60,11 @@
     r_intensity: 'and now — drag the ring to its size in this moment',
   };
 
-  // Layer-1 scripted floor.  The server ships identical strings from
-  // guardrails.SCRIPTED; keeping a local copy means the client can paint
-  // before the socket is even connected.
+  // Layer-1 scripted floor, used when no `oshi_line` arrives in time (e.g.
+  // the socket isn't connected). NOTE: these are NOT the same strings as the
+  // server's backend/orchestrator/oshi/guardrails.py SCRIPTED — the server
+  // copy was later rewritten in a shorter voice. When the backend is up, the
+  // player sees the server's version. See docs/KNOWN_ISSUES.md.
   const SCRIPTED = {
     welcome:     'welcome, traveler — settle onto the branch beside me, and we will meet whatever has come to sit with you today.',
     sensation:   'somewhere in you a current is moving; what is its texture — a tight bark, a cold fog, a buzzing ember?',
@@ -124,8 +131,9 @@
   // -------------------------------------------------------------------
 
   const CS_SURVEY_KEY = 'clarityLoop.survey.v1';
+  // Written when the backend sends an `intervention`, but nothing reads it
+  // yet (the intervention picker is not wired — see backend/orchestrator/agent.py).
   const CS_INTERVENTION_KEY = 'clarityLoop.intervention.v1';
-  const CS_PHYSIO_KEY = 'clarityLoop.physioSnapshot.v1';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -190,7 +198,6 @@
     try {
       sessionStorage.removeItem(CS_SURVEY_KEY);
       sessionStorage.removeItem(CS_INTERVENTION_KEY);
-      sessionStorage.removeItem(CS_PHYSIO_KEY);
     } catch (_) {}
   };
 
@@ -235,7 +242,6 @@
           id: msg.id, params: msg.params, reasoning: msg.reasoning, source: msg.source,
         }));
       } catch (_) {}
-      console.log('[oshi] intervention', msg);
     } else if (msg.type === 'reflection') {
       // Server sends BOTH parts; we render the line as Oshi's caption
       // and the question as the big contemplation.  Both are already
@@ -252,9 +258,10 @@
         if (c) c.textContent = msg.question;
       }
     } else if (msg.type === 'hr_result') {
-      // Passive listener — capture a physio snapshot while user is on
-      // /survey so we can attach it as `intensity_pre` context.  Only
-      // used for game1's retrospective (game2 sends intensity only).
+      // Passive listener — capture a physio snapshot to attach to game1's
+      // session_complete. NOTE: survey.html doesn't start the camera, so
+      // no hr_result arrives here in practice and these fields stay null
+      // (see docs/KNOWN_ISSUES.md).
       state._lastPhysioSnapshot = {
         rr_bpm: msg.rr_bpm,
         restlessness: msg.posture && msg.posture.restlessness,
@@ -293,8 +300,8 @@
     socket.send({
       type: 'session_complete',
       path: a.path || 'game1',
-      // Path-dependent (Spec §4.7): game1 carries CV deltas if present,
-      // game2 sends intensity-only.  Fields are named per SessionResult
+      // Path-dependent: game1 carries breath/restlessness if present; the
+      // other games send intensity only. Field names match SessionResult
       // in backend/orchestrator/oshi/schema.py.
       intensity_pre: a.intensity,
       intensity_post: a.intensity_after,

@@ -1,9 +1,12 @@
 <!DOCTYPE html>
+<!-- Page: /dev/signals — DEVELOPER: live dashboard of every sensed signal.
+     Logic: js/app.js (+ js/camera.js, js/websocket.js).
+     Map of all pages: frontend/CLAUDE.md -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Clarity Loop — Week 3</title>
+  <title>Clarity Loop — Signals (dev)</title>
   <link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body>
@@ -11,19 +14,21 @@
 <div class="dev-view">
 
   <nav class="mode-nav">
-    <a href="/survey" class="mode-link">Survey</a>
-    <a href="/" class="mode-link active">Sensing</a>
-    <a href="/observe" class="mode-link">Observation</a>
-    <a href="/mirror" class="mode-link">Mirror</a>
+    <!-- Shared nav: same links on every page (see frontend/CLAUDE.md). -->
+    <a href="/" class="mode-link">Home</a>
     <a href="/game1" class="mode-link">Game 1</a>
     <a href="/game2" class="mode-link">Game 2</a>
     <a href="/game3" class="mode-link">Game 3</a>
     <a href="/game4" class="mode-link">Game 4</a>
+    <span class="mode-nav-sep" aria-hidden="true">dev</span>
+    <a href="/dev/signals" class="mode-link dev-link active">Signals</a>
+    <a href="/dev/observe" class="mode-link dev-link">Observe</a>
+    <a href="/dev/mirror" class="mode-link dev-link">Mirror</a>
   </nav>
 
   <div class="dev-header">
     <h1>Clarity Loop</h1>
-    <p>Week 3 · Full Sensing Layer</p>
+    <p>Developer · Live Signals</p>
   </div>
 
   <!-- Camera preview -->
@@ -84,10 +89,10 @@
 
 </div>
 
-<!-- MediaPipe Face Mesh (Week 2) -->
+<!-- MediaPipe Face Mesh (face tracking → heart-rate region) -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
 
-<!-- MediaPipe Pose (Week 3 — posture + restlessness) -->
+<!-- MediaPipe Pose (posture + restlessness) -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 
 <script src="/static/js/websocket.js"></script>
