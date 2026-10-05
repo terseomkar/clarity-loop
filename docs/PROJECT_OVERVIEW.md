@@ -1,5 +1,10 @@
 # Clarity Loop — Project Overview
 
+*A detailed tour of every component and game. For a quick start see the
+[README](../README.md); for the runtime diagram see [ARCHITECTURE.md](ARCHITECTURE.md);
+for extending the app see [EXTENDING.md](EXTENDING.md). Unfamiliar terms:
+[GLOSSARY.md](GLOSSARY.md).*
+
 > A 7-week faculty capstone PWA for real-time biofeedback and emotional regulation.
 > Clarity Loop makes the body's physiology visible — heart rate, respiration, posture —
 > through nothing but a webcam, and delivers adaptive, AI-guided micro-interventions
@@ -26,7 +31,7 @@ works with **zero API access**.
 |---|---|---|
 | **Python** (3.10+) | `backend/` | The whole server: FastAPI app + WebSocket endpoint, the CV signal-processing pipelines (rPPG, respiration, posture), the physiological state model, both orchestrators (rules + Haiku), the Oshi narration package, and the SQLite session store. |
 | **JavaScript** (vanilla, no framework) | `frontend/js/` | Everything in the browser: webcam capture and ROI extraction, driving MediaPipe, the auto-reconnecting WebSocket client, the app/game state machines, the `BreathAnalyzer`, and all Canvas/animation rendering. |
-| **HTML** | `frontend/*.html` | Page structure for the home, observe/mirror, four game screens, and the Oshi survey. |
+| **HTML** | `frontend/*.html`, `frontend/dev/*.html` | Page structure for the Oshi survey (landing page), four game screens, and the developer pages. |
 | **CSS** | `frontend/css/main.css` | All styling and the animation keyframes. |
 | **SQL** (SQLite dialect) | `backend/db/session.py` | Schema definition and queries for the session-record store. |
 | **Markdown** | `docs/`, `CLAUDE.md`, Oshi persona | Documentation, integration handoffs, and — notably — Oshi's persona/soul is authored in Markdown and loaded verbatim as the LLM system prompt. |
@@ -75,8 +80,11 @@ flowchart TD
     WS_S --> OSHI
     WS_S -->|"hr_result / intervention<br/>oshi_line / reflection"| WS_C
     WS_C --> UI
-    OSHI --> DB
+    DB -. "not wired yet" .- WS_S
 ```
+
+*Not wired yet:* the intervention picker's result is ignored by the UI, and
+nothing writes to SQLite. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) #1–#2.
 
 ### Data flow, in words
 
@@ -94,25 +102,26 @@ flowchart TD
    (`elevated` / `settling` / `settled` / `dissociated` / `unknown`).
 4. **Reply.** The server returns an `hr_result` carrying `bpm`, `rr_bpm`, a `posture`
    block, `signal_quality`, `state`, and the locked `baseline`.
-5. **Orchestrate.** When the user completes the pre-session survey, the
-   `AgentOrchestrator` asks Haiku to pick **one** intervention + phenomenological
-   reasoning; on any failure it falls back verbatim to the `RuleBasedOrchestrator`.
-   `OshiNarrator` supplies the spoken voice for every survey/retrospective screen.
-6. **Persist.** Completed sessions (pre/post intensity, physio deltas, chosen
-   intervention) are written to SQLite for the "return to seed" home prompt.
+5. **Orchestrate.** `OshiNarrator` supplies the spoken voice for every
+   survey/retrospective screen. On the "offering" screen the `AgentOrchestrator`
+   also asks Haiku to pick **one** intervention + experiential reasoning (falling
+   back to the `RuleBasedOrchestrator`), but the UI doesn't use that pick yet. The
+   player chooses a game directly.
+6. **Persist (not wired).** `db/session.py` can store completed sessions in
+   SQLite, but nothing calls it yet.
 
 ### Runtime surfaces (routes)
 
 | Route | Purpose |
 |---|---|
-| `/` | Home / Week-1 validation view (`index.html`) |
-| `/observe` | **Observational Mode** — landmarks + breath/restlessness waveforms |
-| `/mirror` | **Mirror Mode** — breath rendered as a responsive fire animation |
-| `/game1` | **Phoenix Ascent** — breath-driven flame (CV leads) |
-| `/game2` | **Grandmaster's Count** — ambient bird-call counting meditation |
-| `/game3` | **Follow the Flame** — 4·4·4·4 box-breathing pacer |
-| `/game4` | **Tap the Tide** — guided EFT tapping session |
-| `/survey` | **Oshi Survey & Retrospective** — pre/post subjective flow |
+| `/` (also `/survey`) | **Oshi Survey & Retrospective**, the landing page: pre/post subjective flow |
+| `/game1` | **Phoenix Ascent**: breath-driven flame (CV leads) |
+| `/game2` | **Grandmaster's Count**: ambient bird-call counting meditation |
+| `/game3` | **Follow the Flame**: 4·4·4·4 box-breathing pacer |
+| `/game4` | **Tap the Tide**: guided EFT tapping session |
+| `/dev/signals` | Developer: live dashboard of every signal (`frontend/dev/signals.html`) |
+| `/dev/observe` | Developer, **Observational Mode**: landmarks + breath/restlessness waveforms |
+| `/dev/mirror` | Developer, **Mirror Mode**: breath rendered as a responsive fire animation |
 | `/ws` | WebSocket endpoint (all real-time traffic) |
 | `/health` | Liveness probe |
 
@@ -141,14 +150,7 @@ already-reduced RGB/luminance/landmark arrays, which keeps the server light and 
 
 ### Local run
 
-```bash
-# From clarity-loop/ root
-python -m venv .venv
-source .venv/Scripts/activate            # Windows
-pip install -r backend/requirements.txt
-uvicorn backend.main:app --reload --port 8000
-# open http://localhost:8000
-```
+See the [README quick start](../README.md#quick-start).
 
 ---
 
@@ -166,8 +168,8 @@ average color of the forehead skin oscillates at the cardiac frequency. The pipe
    total-power/peak-power ratio (the most periodic one).
 4. Take the **FFT peak** inside the 0.75–3.33 Hz band (45–200 BPM) → BPM, with an
    **SNR** measure driving `signal_quality`.
-The absolute BPM is treated as unreliable (rPPG drifts) — per the validated project rule,
-the system **trusts variability/deltas, not magnitude**. `main.py` further smooths BPM
+The absolute BPM is treated as unreliable (rPPG drifts), so the system **trusts
+change relative to the person's baseline, not the absolute number**. `main.py` further smooths BPM
 with a rolling median and rejects jumps > 40 BPM.
 
 **Respiration rate — `backend/cv/respiration.py`**
@@ -254,9 +256,10 @@ Neither layer ever raises into the socket loop — the app is **fully usable wit
 
 ## 4 · Main Design Principles
 
-The full set of 15 frameworks lives in
-`Faculty Capstone Markdowns/Context/design-principles.md`; these three are the most
-load-bearing and are enforced in code:
+The full set of frameworks lives in [design-principles.md](design-principles.md); the
+**binding** rules for this codebase are listed in
+[CLAUDE.md](../CLAUDE.md#design-rules-binding). These three are the most load-bearing
+and are enforced in code:
 
 - **Calm Technology.** The CV pipeline runs silently in the background and never interrupts.
   Interventions live at the periphery of attention; the system only steps forward when asked.
@@ -287,8 +290,9 @@ hand off to the `/survey` retrospective at the end. Two games run the CV pipelin
 A breath-driven flame. The real-time chest signal (~15 Hz) pulses the **flame height**
 live, while slow metrics (rate, depth ratio, I:E ratio, breath-hold) computed over a 60 s
 window shape the flame's **character** via a `FlameField` renderer. Here **the breath
-LEADS and the flame FOLLOWS.** Produces full biofeedback signals (breath + restlessness
-deltas) for the retrospective. This is the original mechanic that later games deliberately
+LEADS and the flame FOLLOWS.** It was designed to hand breath + restlessness deltas to
+the retrospective, but those don't arrive yet ([KNOWN_ISSUES.md](KNOWN_ISSUES.md) #3).
+This is the original mechanic that later games deliberately
 react against — real-time tracking proved jittery and ambiguous.
 
 ### Game 2 — Grandmaster's Count  (`/game2`) · *no CV*
@@ -315,7 +319,7 @@ Guidance is **active** (show phase text) or **passive** (only the pulsing glow r
 pattern). Hard rules: no calibration gate (runs from t=0, adherence defaults to a neutral
 0.6), and on poor signal the adherence EMA **freezes** — a bad frame never twitches the fire.
 
-### Game 4 — Tap the Tide  (`/game4`) · *landmarks-only, no backend CV*
+### Game 4 — Tap the Tide  (`/game4`) · *landmarks only; backend replies ignored*
 A guided **EFT (Emotional Freedom Technique) tapping** session. A fixed JS clock walks six
 tapping points — **Top of Head · Eyebrow · Under Eye · Chin · Collarbone · Under Arm** — at
 a chosen dwell (default 11 s) for a chosen number of cycles (default 3). At each point the
@@ -327,13 +331,15 @@ gate or advance the clock. Marker x-coords are mirrored (`1 - lm.x`) to match th
 Fixed `DEFAULT_PTS` positions are the graceful fallback when no face is detected — the
 session always completes even with the camera denied.
 
-### Companion modes (not games)
-- **Observational Mode** (`/observe`) — landmarks + breath/restlessness waveforms only; a
-  bare instrument view.
-- **Mirror Mode** (`/mirror`) — breath rendered as a responsive fire animation; Game 1's
+### Developer pages (not games)
+- **Signals** (`/dev/signals`): every live value from `hr_result` as numbers. Use it to
+  debug signals, including new ones.
+- **Observational Mode** (`/dev/observe`): landmarks + breath/restlessness waveforms only;
+  a bare instrument view.
+- **Mirror Mode** (`/dev/mirror`): breath rendered as a responsive fire animation; Game 1's
   visual without the gamification.
 
-### The connective tissue — Oshi Survey & Retrospective (`/survey`)
+### The connective tissue — Oshi Survey & Retrospective (`/`, also `/survey`)
 Brackets every session. **Pre-session:** sensation → intensity → body region → emotion →
 offering (choose a path). **Post-session:** re-read intensity → reflection → complete. This
 is where the subjective input for the orchestrator is gathered and where Oshi witnesses what
@@ -341,17 +347,12 @@ shifted — conditioned on the signals the chosen game actually measured.
 
 ---
 
-## Appendix · Project Status & Repo Map
+## Appendix · Status & Repo Map
 
-| Week | Focus | Status |
-|---|---|---|
-| 1 | Heart rate (rPPG) | ✅ Done |
-| 2 | Respiration | ✅ Done |
-| 3 | Posture + state model | ✅ Posture done; state thresholds pending live calibration |
-| 4 | Rule-based orchestrator | Implemented (decision matrix; tuning ongoing) |
-| 5 | Haiku agent + Oshi narrator | Implemented (live upgrade over scripted floor) |
-| 6 | SQLite persistence + polished home | Implemented |
-| 7 | Polish + demo | — |
+**Status at handoff (October 2026).**
+- **Working:** sensing (heart rate, breathing, posture, state label), the Oshi survey and reflection (scripted + live Haiku), and all four games.
+- **Built but not wired:** the intervention picker's result and the SQLite session store.
+- **Next phase:** BCI/EEG signals, trained models and new games. See [EXTENDING.md](EXTENDING.md) and [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ```
 clarity-loop/
@@ -360,26 +361,26 @@ clarity-loop/
 │   ├── cv/
 │   │   ├── heart_rate.py       rPPG: JADE ICA + FFT
 │   │   ├── jade.py             JADE ICA algorithm
-│   │   ├── respiration.py      chest-motion + green-channel fallback
+│   │   ├── respiration.py      chest-brightness + green-channel fallback
 │   │   └── posture.py          landmark geometry + restlessness
 │   ├── state/model.py          PhysiologicalStateModel → state label
 │   ├── orchestrator/
-│   │   ├── rules.py            RuleBasedOrchestrator (fallback)
-│   │   ├── agent.py            AgentOrchestrator (Haiku intervention selector)
+│   │   ├── rules.py            RuleBasedOrchestrator (fallback; not wired to UI)
+│   │   ├── agent.py            AgentOrchestrator (Haiku intervention picker; not wired to UI)
 │   │   └── oshi/               OshiNarrator package (persona, context,
 │   │                           reflection, guardrails, schema)
-│   └── db/session.py           SQLite session store
+│   └── db/session.py           SQLite session store (not wired)
 ├── frontend/
-│   ├── index / observe / mirror / game1-4 / survey  .html
-│   ├── js/  camera, websocket, app, game1-4, mirror, observe, oshi_flow, breath_stabilizer
-│   └── css/main.css
+│   ├── survey.html             landing page
+│   ├── game1-4.html            the games
+│   ├── dev/                    signals / observe / mirror developer pages
+│   ├── js/                     camera, websocket (shared) + one script per page
+│   ├── css/main.css
+│   └── img/, video/
 ├── audio/                      ambient + bird-call samples
-├── docs/                       integration handoffs + this overview
-├── Dockerfile / docker-compose.yml
-└── CLAUDE.md
+├── tests/                      pytest smoke suite
+├── docs/                       this overview + architecture, extending, glossary,
+│                               known issues, design docs; archive/ = history
+├── Dockerfile / docker-compose.yml / .dockerignore
+├── README.md, CLAUDE.md, CREDITS.md
 ```
-
----
-
-*Generated as a repository summary. For the authoritative 7-week scope and weekly gates, see
-`Faculty Capstone Markdowns/Claude Implementation Plan/Clarity Loop - 7 Week Project Plan.md`.*
